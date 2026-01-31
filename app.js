@@ -88,6 +88,12 @@ app.get(/(.*)/, (req, res) => {
 sequelize.sync({ alter: true }).then(async () => {
     console.log('Database synced');
     
+    // Ensure session table is created
+    if (sessionStore.sync) {
+        await sessionStore.sync();
+        console.log('Session table synced');
+    }
+    
     // Seed default admin
     const adminCount = await Admin.count();
     if (adminCount === 0) {
