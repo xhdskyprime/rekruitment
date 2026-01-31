@@ -5,6 +5,7 @@ import {
   Users, CheckCircle, XCircle, FileText, 
   LogOut, Search, Clock, Menu, LayoutDashboard, Shield, User, Printer
 } from 'lucide-react';
+import JsBarcode from 'jsbarcode';
 
 interface Applicant {
   id: number;
@@ -190,6 +191,22 @@ const Dashboard = () => {
   );
 
   const handlePrintCard = (applicant: Applicant) => {
+    // Generate Barcode
+    const canvas = document.createElement('canvas');
+    try {
+      JsBarcode(canvas, applicant.id.toString(), {
+        format: "CODE128",
+        displayValue: true,
+        fontSize: 14,
+        height: 40,
+        width: 2,
+        margin: 5
+      });
+    } catch (e) {
+      console.error("Barcode generation failed", e);
+    }
+    const barcodeDataUrl = canvas.toDataURL("image/png");
+
     const printWindow = window.open('', '_blank', 'width=800,height=600');
     if (printWindow) {
         printWindow.document.write(`
@@ -316,6 +333,12 @@ const Dashboard = () => {
                             <div class="row">
                                 <span class="label">Status</span>
                                 <span class="value" style="color:green;font-weight:bold">: TERVERIFIKASI</span>
+                            </div>
+                            <div class="row" style="border-bottom: none; margin-top: 15px;">
+                                <span class="label">Scan Barcode</span>
+                                <div class="value">
+                                    <img src="${barcodeDataUrl}" alt="Barcode" style="display:block; margin-top:-10px;" />
+                                </div>
                             </div>
                         </div>
                     </div>
