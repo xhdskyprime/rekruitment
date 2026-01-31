@@ -12,8 +12,10 @@ interface Applicant {
   name: string;
   nik: string;
   gender: string;
+  birthDate?: string;
   education: string;
   email: string;
+  phoneNumber?: string;
   position: string;
   status: string;
   ktpPath: string;
@@ -60,6 +62,22 @@ const Dashboard = () => {
   const [newUser, setNewUser] = useState({ username: '', password: '', role: 'verificator' });
 
   const navigate = useNavigate();
+
+  const calculateAgeAtRegistration = (birthDate: string | undefined, registrationDate: string) => {
+    if (!birthDate) return '-';
+    
+    const birth = new Date(birthDate);
+    const registration = new Date(registrationDate);
+    
+    let age = registration.getFullYear() - birth.getFullYear();
+    const m = registration.getMonth() - birth.getMonth();
+    
+    if (m < 0 || (m === 0 && registration.getDate() < birth.getDate())) {
+        age--;
+    }
+    
+    return age + ' Tahun';
+  };
 
   useEffect(() => {
     checkAuthAndFetch();
@@ -652,6 +670,8 @@ const Dashboard = () => {
                           <th className="px-6 py-4">Nama Lengkap</th>
                           <th className="px-6 py-4">NIK</th>
                           <th className="px-6 py-4">Jenis Kelamin</th>
+                          <th className="px-6 py-4">Tanggal Lahir</th>
+                          <th className="px-6 py-4">Umur (Saat Daftar)</th>
                           <th className="px-6 py-4">Pendidikan</th>
                           <th className="px-6 py-4">Posisi</th>
                           <th className="px-6 py-4">Email</th>
@@ -680,6 +700,10 @@ const Dashboard = () => {
                               <td className="px-6 py-4 font-semibold text-gray-900">{app.name}</td>
                               <td className="px-6 py-4 text-gray-600 font-mono text-sm">{app.nik}</td>
                               <td className="px-6 py-4 text-gray-600">{app.gender}</td>
+                              <td className="px-6 py-4 text-gray-600">{app.birthDate || '-'}</td>
+                              <td className="px-6 py-4 text-gray-600 font-medium">
+                                {calculateAgeAtRegistration(app.birthDate, app.createdAt)}
+                              </td>
                               <td className="px-6 py-4 text-gray-600">{app.education}</td>
                               <td className="px-6 py-4">
                                 <span className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium border border-blue-100">
@@ -687,6 +711,7 @@ const Dashboard = () => {
                                 </span>
                               </td>
                               <td className="px-6 py-4 text-gray-500 text-sm">{app.email}</td>
+                              <td className="px-6 py-4 text-gray-500 text-sm">{app.phoneNumber || '-'}</td>
                             </>
                           ) : (
                             <>

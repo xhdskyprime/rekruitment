@@ -7,8 +7,10 @@ const Home = () => {
     name: '',
     nik: '',
     gender: '',
+    birthDate: '',
     education: '',
     email: '',
+    phoneNumber: '',
     position: '',
   });
   
@@ -54,6 +56,7 @@ const Home = () => {
     data.append('name', formData.name);
     data.append('nik', formData.nik);
     data.append('gender', formData.gender);
+    data.append('birthDate', formData.birthDate);
     data.append('education', formData.education);
     data.append('email', formData.email);
     data.append('position', formData.position);
@@ -167,6 +170,18 @@ const Home = () => {
                 />
               </div>
 
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Tanggal Lahir</label>
+                <input 
+                  type="date" 
+                  name="birthDate" 
+                  required
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-tangerang-purple focus:border-transparent transition"
+                  value={formData.birthDate}
+                  onChange={handleInputChange}
+                />
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Jenis Kelamin</label>
@@ -211,6 +226,22 @@ const Home = () => {
                   placeholder="email@contoh.com"
                   value={formData.email}
                   onChange={handleInputChange}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nomor HP / WhatsApp</label>
+                <input 
+                  type="tel" 
+                  name="phoneNumber" 
+                  required
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-tangerang-purple focus:border-transparent transition"
+                  placeholder="Contoh: 081234567890"
+                  value={formData.phoneNumber}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/\D/g, '');
+                    setFormData(prev => ({ ...prev, phoneNumber: value }));
+                  }}
                 />
               </div>
 

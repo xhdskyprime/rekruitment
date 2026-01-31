@@ -20,6 +20,10 @@ const Applicant = sequelize.define('Applicant', {
         type: DataTypes.ENUM('Laki-laki', 'Perempuan'),
         allowNull: false
     },
+    birthDate: {
+        type: DataTypes.DATEONLY,
+        allowNull: true // Allow null for existing records temporarily
+    },
     education: {
         type: DataTypes.STRING,
         allowNull: false
@@ -30,6 +34,10 @@ const Applicant = sequelize.define('Applicant', {
         validate: {
             isEmail: true
         }
+    },
+    phoneNumber: {
+        type: DataTypes.STRING,
+        allowNull: true // Changed to allow null for existing records
     },
     position: {
         type: DataTypes.STRING,

@@ -85,7 +85,7 @@ app.get(/(.*)/, (req, res) => {
 });
 
 // Sync Database and Start Server
-sequelize.sync().then(async () => {
+sequelize.sync({ alter: true }).then(async () => {
     console.log('Database synced');
     
     // Seed default admin
