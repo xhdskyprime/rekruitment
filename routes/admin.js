@@ -38,7 +38,13 @@ router.get('/check-auth', async (req, res) => {
     if (req.session.adminId) {
         try {
             const admin = await Admin.findByPk(req.session.adminId);
-            res.json({ authenticated: true, role: admin ? admin.role : null, username: admin ? admin.username : null });
+            res.json({ 
+                authenticated: true, 
+                role: admin ? admin.role : null, 
+                username: admin ? admin.username : null,
+                // Add DB Info for debugging (only visible to authenticated admins)
+                dbType: process.env.DATABASE_URL ? 'PostgreSQL' : 'SQLite (Ephemeral)'
+            });
         } catch (error) {
             res.json({ authenticated: false });
         }

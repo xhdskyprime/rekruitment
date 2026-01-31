@@ -58,6 +58,7 @@ const Dashboard = () => {
   // User Management State
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
   const [currentUsername, setCurrentUsername] = useState<string>('');
+  const [dbType, setDbType] = useState<string>('');
   const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
   const [newUser, setNewUser] = useState({ username: '', password: '', role: 'verificator' });
 
