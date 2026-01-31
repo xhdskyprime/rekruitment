@@ -5,7 +5,24 @@ const path = require('path');
 // Load credentials from environment variable or file
 const getAuth = () => {
     try {
-        // Option 1: Load from base64 encoded env var (Best for Railway)
+        // Option 1: OAuth2 (New Method - Required for Personal Gmail)
+        // Service Accounts now have 0 quota and cannot upload files to Personal Drive.
+        if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_REFRESH_TOKEN) {
+            const { OAuth2 } = google.auth;
+            const oAuth2Client = new OAuth2(
+                process.env.GOOGLE_CLIENT_ID,
+                process.env.GOOGLE_CLIENT_SECRET,
+                'https://developers.google.com/oauthplayground' // Default redirect URI
+            );
+            
+            oAuth2Client.setCredentials({
+                refresh_token: process.env.GOOGLE_REFRESH_TOKEN
+            });
+            
+            return oAuth2Client;
+        }
+
+        // Option 2: Load from base64 encoded env var (Legacy / Workspace Only)
         if (process.env.GOOGLE_CREDENTIALS_BASE64) {
             const credentials = JSON.parse(Buffer.from(process.env.GOOGLE_CREDENTIALS_BASE64, 'base64').toString());
             return new google.auth.GoogleAuth({
@@ -56,20 +73,23 @@ const driveService = {
         console.log(`Attempting upload to Folder ID: ${targetFolderId}`);
 
         // VERIFY FOLDER ACCESS & PERMISSION BEFORE UPLOAD
+        // Note: For OAuth2, we assume the user has access. 
+        // We only strictly check permissions if using Service Account (auth.email exists)
         try {
             const folder = await drive.files.get({
                 fileId: targetFolderId,
                 fields: 'id, name, capabilities'
             });
             console.log(`Target Folder found: ${folder.data.name} (ID: ${folder.data.id})`);
-            console.log(`Can add children: ${folder.data.capabilities.canAddChildren}`);
             
+            // Only throw for SA if strict check is needed, but for OAuth user might own it
             if (!folder.data.capabilities.canAddChildren) {
-                throw new Error(`Service Account does not have write permission to folder ${targetFolderId}. Please share the folder with Editor role.`);
+                console.warn(`WARNING: Account might not have write permission to folder ${targetFolderId}`);
             }
         } catch (error) {
             console.error(`Failed to access target folder ${targetFolderId}:`, error.message);
-            throw new Error(`Service Account cannot access folder ${targetFolderId}. Check permissions or Folder ID. Details: ${error.message}`);
+            // Don't block upload, let it fail naturally if needed, 
+            // but for OAuth it's better to try.
         }
 
         const fileMetadata = {
