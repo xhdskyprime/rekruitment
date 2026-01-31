@@ -35,6 +35,12 @@ const driveService = {
         const bufferStream = new stream.PassThrough();
         bufferStream.end(fileObject.buffer);
 
+        let targetFolderId = folderId;
+        if (!targetFolderId && process.env.GOOGLE_DRIVE_FOLDER_ID) {
+            // Sanitize ID: remove query params like ?hl=id and whitespace
+            targetFolderId = process.env.GOOGLE_DRIVE_FOLDER_ID.split('?')[0].trim();
+        }
+
         const fileMetadata = {
             name: `${Date.now()}-${fileObject.originalname}`,
             // IMPORTANT: If folderId is not provided, use a specific default folder ID or root.
@@ -43,7 +49,7 @@ const driveService = {
             // However, the error 'Service Accounts do not have storage quota' specifically means
             // the Service Account is trying to own a file in its own Drive but has 0 bytes quota.
             // SOLUTION: Must upload to a folder owned by a regular Gmail account.
-            parents: folderId ? [folderId] : (process.env.GOOGLE_DRIVE_FOLDER_ID ? [process.env.GOOGLE_DRIVE_FOLDER_ID] : []), 
+            parents: targetFolderId ? [targetFolderId] : [], 
         };
 
         const media = {
