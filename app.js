@@ -12,8 +12,16 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const bcrypt = require('bcryptjs');
 
+const driveService = require('./services/driveService');
+
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Proxy route for Google Drive files
+app.get('/file/proxy/:id', async (req, res) => {
+    const fileId = req.params.id;
+    await driveService.getFileStream(fileId, res);
+});
 
 // Security Middleware
 app.use(helmet({
@@ -37,7 +45,7 @@ app.use(cors({
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 app.use(express.static('public'));
-app.use('/uploads', express.static(process.env.UPLOAD_DIR || path.join(__dirname, 'data/uploads')));
+// app.use('/uploads', express.static(process.env.UPLOAD_DIR || path.join(__dirname, 'data/uploads')));
 app.use(express.static(path.join(__dirname, 'client/dist')));
 app.use(methodOverride('_method'));
 

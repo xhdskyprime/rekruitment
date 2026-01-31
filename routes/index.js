@@ -4,23 +4,10 @@ const multer = require('multer');
 const path = require('path');
 const Applicant = require('../models/Applicant');
 
-// Configure Multer for file upload
-const uploadDir = process.env.UPLOAD_DIR || path.join(__dirname, '../data/uploads');
-const fs = require('fs');
+const driveService = require('../services/driveService');
 
-// Ensure upload directory exists
-if (!fs.existsSync(uploadDir)){
-    fs.mkdirSync(uploadDir, { recursive: true });
-}
-
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, uploadDir);
-    },
-    filename: (req, file, cb) => {
-        cb(null, Date.now() + '-' + file.fieldname + path.extname(file.originalname));
-    }
-});
+// Configure Multer for memory storage (for Google Drive upload)
+const storage = multer.memoryStorage();
 
 const upload = multer({ 
     storage: storage,
@@ -79,6 +66,12 @@ router.post('/register', (req, res, next) => {
         const { name, nik, gender, education, email, position } = req.body;
         console.log('Received body:', req.body); // Debugging
         
+        // Helper to upload to Drive and get ID
+        const uploadToDrive = async (file) => {
+             const driveFile = await driveService.uploadFile(file);
+             return '/file/proxy/' + driveFile.id; // Return proxy URL
+        };
+
         const applicant = await Applicant.create({
             name,
             nik,
@@ -86,11 +79,11 @@ router.post('/register', (req, res, next) => {
             education,
             email,
             position,
-            ktpPath: '/uploads/' + files.ktp[0].filename,
-            ijazahPath: '/uploads/' + files.ijazah[0].filename,
-            strPath: '/uploads/' + files.str[0].filename,
-            sertifikatPath: '/uploads/' + files.sertifikat[0].filename,
-            pasFotoPath: '/uploads/' + files.pasFoto[0].filename
+            ktpPath: await uploadToDrive(files.ktp[0]),
+            ijazahPath: await uploadToDrive(files.ijazah[0]),
+            strPath: await uploadToDrive(files.str[0]),
+            sertifikatPath: await uploadToDrive(files.sertifikat[0]),
+            pasFotoPath: await uploadToDrive(files.pasFoto[0])
         });
 
         res.status(201).json({ success: true, applicant });

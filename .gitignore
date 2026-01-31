@@ -6,3 +6,5 @@ public/uploads
 client/node_modules
 client/dist
 .DS_Store
+*.sqlite
+database.sqlite
