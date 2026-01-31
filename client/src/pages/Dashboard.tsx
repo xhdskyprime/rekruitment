@@ -688,6 +688,7 @@ const Dashboard = () => {
                           <th className="px-6 py-4">Pendidikan</th>
                           <th className="px-6 py-4">Posisi</th>
                           <th className="px-6 py-4">Email</th>
+                          <th className="px-6 py-4">No HP</th>
                         </>
                       ) : (
                         <>

@@ -15,7 +15,7 @@ const Status = () => {
     setApplicant(null);
 
     try {
-      const response = await axios.get(`/status?nik=${nik}`);
+      const response = await axios.get(`/api/status?nik=${nik}`);
       setApplicant(response.data.applicant);
     } catch (err: any) {
       if (err.response?.status === 404) {

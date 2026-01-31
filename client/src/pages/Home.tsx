@@ -99,12 +99,12 @@ const Home = () => {
             >
               Kembali ke Beranda
             </button>
-            <a 
-              href="/status" 
+            <Link 
+              to="/status" 
               className="px-6 py-3 bg-tangerang-purple text-white rounded-xl hover:bg-tangerang-light transition shadow-lg shadow-purple-200 font-medium"
             >
               Cek Status Lamaran
-            </a>
+            </Link>
           </div>
         </div>
       </div>

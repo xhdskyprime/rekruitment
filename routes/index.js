@@ -110,7 +110,7 @@ router.post('/register', (req, res, next) => {
 });
 
 // Check Status Page
-router.get('/status', async (req, res) => {
+router.get('/api/status', async (req, res) => {
     const { nik } = req.query;
     try {
         if (!nik) {
