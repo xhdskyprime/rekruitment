@@ -61,6 +61,7 @@ app.use(session({
     store: sessionStore,
     resave: false,
     saveUninitialized: false,
+    proxy: true, // Required for Railway (behind load balancer)
     cookie: {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production', // true in production
