@@ -10,14 +10,14 @@ const getAuth = () => {
             const credentials = JSON.parse(Buffer.from(process.env.GOOGLE_CREDENTIALS_BASE64, 'base64').toString());
             return new google.auth.GoogleAuth({
                 credentials,
-                scopes: ['https://www.googleapis.com/auth/drive.file'],
+                scopes: ['https://www.googleapis.com/auth/drive'], // Changed to full drive scope to ensure visibility of shared folders
             });
         }
         
         // Option 2: Load from local file (Best for Local Dev)
         return new google.auth.GoogleAuth({
             keyFile: path.join(__dirname, '../google-credentials.json'),
-            scopes: ['https://www.googleapis.com/auth/drive.file'],
+            scopes: ['https://www.googleapis.com/auth/drive'], // Changed to full drive scope
         });
     } catch (error) {
         console.error("Google Auth Error:", error.message);
