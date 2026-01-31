@@ -159,6 +159,19 @@ const Dashboard = () => {
     }
   };
 
+  const handleDeleteApplicant = async (id: number) => {
+    if (!confirm('Apakah Anda yakin ingin menghapus data pelamar ini? Tindakan ini tidak dapat dibatalkan.')) return;
+    
+    try {
+      await axios.delete(`/admin/applicant/${id}`, { withCredentials: true });
+      // Refresh data
+      await fetchApplicants();
+    } catch (error: any) {
+      console.error('Delete failed', error);
+      alert(error.response?.data?.error || 'Gagal menghapus data pelamar');
+    }
+  };
+
   const openPreview = (applicant: Applicant, type: string, label: string, path: string, status: string) => {
     setSelectedApplicant(applicant);
     
@@ -776,6 +789,13 @@ const Dashboard = () => {
                                     Cetak Kartu
                                   </button>
                                 )}
+                                <button
+                                  onClick={() => handleDeleteApplicant(app.id)}
+                                  className="ml-2 text-red-500 hover:text-red-700 p-1.5 rounded-full hover:bg-red-50 transition"
+                                  title="Hapus Pelamar"
+                                >
+                                  <div className="w-5 h-5 flex items-center justify-center border-2 border-red-500 rounded-full font-bold text-xs">X</div>
+                                </button>
                               </td>
                             </>
                           )}

@@ -199,6 +199,34 @@ router.post('/verify-file/:id', isAuthenticated, async (req, res) => {
 router.post('/reject/:id', isAuthenticated, async (req, res) => {
     try {
         const applicant = await Applicant.findByPk(req.params.id);
+        if (!applicant) return res.status(404).json({ error: 'Applicant not found' });
+        
+        applicant.status = 'rejected';
+        applicant.examCardPath = null;
+        await applicant.save();
+        
+        res.json({ success: true, message: 'Applicant rejected', applicant });
+    } catch (error) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Delete Applicant (Protected)
+router.delete('/applicant/:id', isAuthenticated, async (req, res) => {
+    try {
+        const applicant = await Applicant.findByPk(req.params.id);
+        if (!applicant) return res.status(404).json({ error: 'Pelamar tidak ditemukan' });
+        
+        // Optional: Delete associated files if needed, but for now just delete the record
+        await applicant.destroy();
+        
+        res.json({ success: true, message: 'Data pelamar berhasil dihapus' });
+    } catch (error) {
+        console.error('Delete error:', error);
+        res.status(500).json({ error: 'Gagal menghapus data pelamar' });
+    }
+});
+        const applicant = await Applicant.findByPk(req.params.id);
         if (applicant) {
             applicant.status = 'rejected';
             applicant.examCardPath = null;
