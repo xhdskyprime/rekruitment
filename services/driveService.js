@@ -41,15 +41,13 @@ const driveService = {
             targetFolderId = process.env.GOOGLE_DRIVE_FOLDER_ID.split('?')[0].trim();
         }
 
+        if (!targetFolderId) {
+            throw new Error("GOOGLE_DRIVE_FOLDER_ID is missing. Service Accounts cannot upload to their own root directory (0 quota). Please set the folder ID in environment variables.");
+        }
+
         const fileMetadata = {
             name: `${Date.now()}-${fileObject.originalname}`,
-            // IMPORTANT: If folderId is not provided, use a specific default folder ID or root.
-            // Service Accounts CANNOT own files without a parent folder shared from a personal account
-            // OR if they do, they consume 0 quota but some domains restrict this.
-            // However, the error 'Service Accounts do not have storage quota' specifically means
-            // the Service Account is trying to own a file in its own Drive but has 0 bytes quota.
-            // SOLUTION: Must upload to a folder owned by a regular Gmail account.
-            parents: targetFolderId ? [targetFolderId] : [], 
+            parents: [targetFolderId], 
         };
 
         const media = {
