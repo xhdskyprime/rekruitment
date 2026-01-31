@@ -1,0 +1,86 @@
+const { DataTypes } = require('sequelize');
+const sequelize = require('./database');
+
+const Applicant = sequelize.define('Applicant', {
+    id: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true
+    },
+    name: {
+        type: DataTypes.STRING,
+        allowNull: false
+    },
+    nik: {
+        type: DataTypes.STRING,
+        allowNull: false,
+        unique: true
+    },
+    gender: {
+        type: DataTypes.ENUM('Laki-laki', 'Perempuan'),
+        allowNull: false
+    },
+    education: {
+        type: DataTypes.STRING,
+        allowNull: false
+    },
+    email: {
+        type: DataTypes.STRING,
+        allowNull: false,
+        validate: {
+            isEmail: true
+        }
+    },
+    position: {
+        type: DataTypes.STRING,
+        allowNull: false
+    },
+    // File Paths
+    pasFotoPath: { type: DataTypes.STRING, allowNull: true }, 
+    ktpPath: { type: DataTypes.STRING, allowNull: false },
+    ijazahPath: { type: DataTypes.STRING, allowNull: false },
+    strPath: { type: DataTypes.STRING, allowNull: false },
+    sertifikatPath: { type: DataTypes.STRING, allowNull: false },
+    
+    // Verification Status per File
+    // Values: 'pending', 'valid' (Sesuai), 'invalid' (Tidak Sesuai)
+    ktpStatus: { 
+        type: DataTypes.ENUM('pending', 'valid', 'invalid'), 
+        defaultValue: 'pending' 
+    },
+    ktpVerifiedAt: { type: DataTypes.DATE, allowNull: true },
+    ktpVerifiedBy: { type: DataTypes.STRING, allowNull: true },
+
+    ijazahStatus: { 
+        type: DataTypes.ENUM('pending', 'valid', 'invalid'), 
+        defaultValue: 'pending' 
+    },
+    ijazahVerifiedAt: { type: DataTypes.DATE, allowNull: true },
+    ijazahVerifiedBy: { type: DataTypes.STRING, allowNull: true },
+
+    strStatus: { 
+        type: DataTypes.ENUM('pending', 'valid', 'invalid'), 
+        defaultValue: 'pending' 
+    },
+    strVerifiedAt: { type: DataTypes.DATE, allowNull: true },
+    strVerifiedBy: { type: DataTypes.STRING, allowNull: true },
+
+    sertifikatStatus: { 
+        type: DataTypes.ENUM('pending', 'valid', 'invalid'), 
+        defaultValue: 'pending' 
+    },
+    sertifikatVerifiedAt: { type: DataTypes.DATE, allowNull: true },
+    sertifikatVerifiedBy: { type: DataTypes.STRING, allowNull: true },
+
+    // Global Status
+    status: {
+        type: DataTypes.ENUM('pending', 'verified', 'rejected'),
+        defaultValue: 'pending'
+    },
+    examCardPath: {
+        type: DataTypes.STRING,
+        allowNull: true
+    }
+});
+
+module.exports = Applicant;

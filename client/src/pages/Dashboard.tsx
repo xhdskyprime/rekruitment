@@ -1,0 +1,653 @@
+import React, { useEffect, useState } from 'react';
+import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
+import { 
+  Users, CheckCircle, XCircle, FileText, 
+  LogOut, Search, Clock, Menu, LayoutDashboard, Shield, User
+} from 'lucide-react';
+
+interface Applicant {
+  id: number;
+  name: string;
+  nik: string;
+  gender: string;
+  education: string;
+  email: string;
+  position: string;
+  status: string;
+  ktpPath: string;
+  ijazahPath: string;
+  strPath: string;
+  sertifikatPath: string;
+  ktpStatus: string;
+  ijazahStatus: string;
+  strStatus: string;
+  sertifikatStatus: string;
+  ktpVerifiedAt?: string;
+  ktpVerifiedBy?: string;
+  ijazahVerifiedAt?: string;
+  ijazahVerifiedBy?: string;
+  strVerifiedAt?: string;
+  strVerifiedBy?: string;
+  sertifikatVerifiedAt?: string;
+  sertifikatVerifiedBy?: string;
+  pasFotoPath?: string;
+  examCardPath: string | null;
+  createdAt: string;
+}
+
+interface AdminUser {
+  id: number;
+  username: string;
+  role: 'superadmin' | 'verificator';
+  createdAt: string;
+}
+
+const Dashboard = () => {
+  const [applicants, setApplicants] = useState<Applicant[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedApplicant, setSelectedApplicant] = useState<Applicant | null>(null);
+  const [previewFile, setPreviewFile] = useState<{ type: string, label: string, url: string, status: string, verifiedAt?: string, verifiedBy?: string } | null>(null);
+  const [activeTab, setActiveTab] = useState<'applicants' | 'verification' | 'users'>('applicants');
+  const [isSidebarOpen, setSidebarOpen] = useState(true);
+  
+  // User Management State
+  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
+  const [currentUsername, setCurrentUsername] = useState<string>('');
+  const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
+  const [newUser, setNewUser] = useState({ username: '', password: '', role: 'verificator' });
+
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    checkAuthAndFetch();
+  }, []);
+
+  const fetchApplicants = async () => {
+    try {
+      const response = await axios.get('/admin', { withCredentials: true });
+      setApplicants(response.data.applicants);
+    } catch (error) {
+      console.error('Failed to fetch applicants', error);
+    }
+  };
+
+  const checkAuthAndFetch = async () => {
+    try {
+      // Check auth first to get role
+      const authRes = await axios.get('/admin/check-auth', { withCredentials: true });
+      if (!authRes.data.authenticated) {
+        navigate('/login');
+        return;
+      }
+      setCurrentUserRole(authRes.data.role);
+      setCurrentUsername(authRes.data.username || 'Admin');
+
+      // Fetch applicants
+      await fetchApplicants();
+
+      // If superadmin, fetch users
+      if (authRes.data.role === 'superadmin') {
+          fetchUsers();
+      }
+    } catch (error: any) {
+      if (error.response?.status === 401) {
+        navigate('/login');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchUsers = async () => {
+    try {
+        const res = await axios.get('/admin/users', { withCredentials: true });
+        setAdminUsers(res.data.admins);
+    } catch (error) {
+        console.error('Failed to fetch users', error);
+    }
+  };
+
+  const handleCreateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+        await axios.post('/admin/users', newUser, { withCredentials: true });
+        setNewUser({ username: '', password: '', role: 'verificator' });
+        fetchUsers();
+        alert('User berhasil dibuat');
+    } catch (error: any) {
+        alert(error.response?.data?.error || 'Gagal membuat user');
+    }
+  };
+
+  const handleDeleteUser = async (id: number) => {
+    if (!confirm('Yakin ingin menghapus user ini?')) return;
+    try {
+        await axios.delete(`/admin/users/${id}`, { withCredentials: true });
+        fetchUsers();
+    } catch (error: any) {
+        alert(error.response?.data?.error || 'Gagal menghapus user');
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await axios.post('/admin/logout', {}, { withCredentials: true });
+      navigate('/login');
+    } catch (error) {
+      console.error('Logout failed', error);
+    }
+  };
+
+  const openPreview = (applicant: Applicant, type: string, label: string, path: string, status: string) => {
+    setSelectedApplicant(applicant);
+    
+    let verifiedAt, verifiedBy;
+    // Map type to property names
+    if (type === 'ktp') { verifiedAt = applicant.ktpVerifiedAt; verifiedBy = applicant.ktpVerifiedBy; }
+    else if (type === 'ijazah') { verifiedAt = applicant.ijazahVerifiedAt; verifiedBy = applicant.ijazahVerifiedBy; }
+    else if (type === 'str') { verifiedAt = applicant.strVerifiedAt; verifiedBy = applicant.strVerifiedBy; }
+    else if (type === 'sertifikat') { verifiedAt = applicant.sertifikatVerifiedAt; verifiedBy = applicant.sertifikatVerifiedBy; }
+
+    setPreviewFile({
+      type,
+      label,
+      url: path,
+      status,
+      verifiedAt,
+      verifiedBy
+    });
+  };
+
+  const verifyFile = async (status: 'valid' | 'invalid') => {
+    if (!selectedApplicant || !previewFile) return;
+
+    try {
+      await axios.post(
+        `/admin/verify-file/${selectedApplicant.id}`, 
+        { fileType: previewFile.type.toLowerCase(), status },
+        { withCredentials: true }
+      );
+      
+      // Refresh data
+      await fetchApplicants();
+      
+      // Close modal
+      setPreviewFile(null);
+      setSelectedApplicant(null);
+    } catch (error: any) {
+      console.error('Verification failed', error);
+      const msg = error.response?.data?.error || error.message || 'Gagal memverifikasi berkas.';
+      alert(msg);
+    }
+  };
+
+  const filteredApplicants = applicants.filter(app => 
+    app.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    app.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    app.position.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  return (
+    <div className="flex h-screen bg-gray-50 font-sans overflow-hidden">
+      {/* Sidebar */}
+      <aside className={`bg-white border-r border-gray-200 flex flex-col fixed md:relative z-30 h-full transition-all duration-300 w-64 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0 md:w-20'}`}>
+        <div className={`h-16 flex items-center px-4 border-b border-gray-100 ${!isSidebarOpen && 'justify-center'}`}>
+          <div className="w-8 h-8 bg-tangerang-purple rounded-lg flex items-center justify-center text-white font-bold flex-shrink-0">
+            <Shield size={20} />
+          </div>
+          <span className={`ml-3 font-bold text-gray-800 text-lg transition-opacity duration-200 ${!isSidebarOpen && 'hidden md:hidden'}`}>
+            Admin Panel
+          </span>
+        </div>
+        
+        <nav className="flex-1 py-6 px-3 space-y-2 overflow-y-auto">
+          <button
+            onClick={() => setActiveTab('applicants')}
+            className={`w-full flex items-center px-3 py-3 rounded-xl transition-all duration-200 group ${
+              activeTab === 'applicants'
+                ? 'bg-purple-50 text-tangerang-purple font-medium shadow-sm'
+                : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
+            } ${!isSidebarOpen && 'justify-center'}`}
+            title="Data Pelamar"
+          >
+            <LayoutDashboard className={`w-5 h-5 flex-shrink-0 ${activeTab === 'applicants' ? 'text-tangerang-purple' : 'text-gray-400 group-hover:text-gray-600'}`} />
+            <span className={`ml-3 whitespace-nowrap ${!isSidebarOpen && 'hidden md:hidden'}`}>Data Pelamar</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('verification')}
+            className={`w-full flex items-center px-3 py-3 rounded-xl transition-all duration-200 group ${
+              activeTab === 'verification'
+                ? 'bg-purple-50 text-tangerang-purple font-medium shadow-sm'
+                : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
+            } ${!isSidebarOpen && 'justify-center'}`}
+            title="Verifikasi Berkas"
+          >
+            <FileText className={`w-5 h-5 flex-shrink-0 ${activeTab === 'verification' ? 'text-tangerang-purple' : 'text-gray-400 group-hover:text-gray-600'}`} />
+            <span className={`ml-3 whitespace-nowrap ${!isSidebarOpen && 'hidden md:hidden'}`}>Verifikasi Berkas</span>
+          </button>
+
+          {currentUserRole === 'superadmin' && (
+            <button
+              onClick={() => setActiveTab('users')}
+              className={`w-full flex items-center px-3 py-3 rounded-xl transition-all duration-200 group ${
+                activeTab === 'users'
+                  ? 'bg-purple-50 text-tangerang-purple font-medium shadow-sm'
+                  : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
+              } ${!isSidebarOpen && 'justify-center'}`}
+              title="Manajemen User"
+            >
+              <Users className={`w-5 h-5 flex-shrink-0 ${activeTab === 'users' ? 'text-tangerang-purple' : 'text-gray-400 group-hover:text-gray-600'}`} />
+              <span className={`ml-3 whitespace-nowrap ${!isSidebarOpen && 'hidden md:hidden'}`}>Manajemen User</span>
+            </button>
+          )}
+        </nav>
+
+        <div className="p-4 border-t border-gray-100">
+           <div className={`text-xs text-gray-400 text-center ${!isSidebarOpen && 'hidden'}`}>
+             v1.0.0
+           </div>
+        </div>
+      </aside>
+
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col overflow-hidden relative">
+        {/* Header */}
+        <header className="h-16 bg-white shadow-sm flex items-center justify-between px-6 z-10 sticky top-0">
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={() => setSidebarOpen(!isSidebarOpen)} 
+              className="p-2 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+            <h2 className="text-xl font-semibold text-gray-800">
+              {activeTab === 'applicants' ? 'Data Pelamar' : activeTab === 'verification' ? 'Verifikasi Berkas' : 'Manajemen User'}
+            </h2>
+          </div>
+
+          {/* User Profile */}
+          <div className="flex items-center gap-6">
+             <div className="flex items-center gap-3 pl-6 border-l border-gray-100">
+                <div className="text-right hidden sm:block">
+                   <p className="text-sm font-bold text-gray-800 leading-none mb-1">{currentUsername || 'Admin'}</p>
+                   <p className="text-xs text-gray-500 uppercase font-medium">{currentUserRole}</p>
+                </div>
+                <div className="h-10 w-10 rounded-full bg-purple-100 border-2 border-white shadow-sm flex items-center justify-center text-tangerang-purple font-bold text-lg">
+                   {currentUsername ? currentUsername.charAt(0).toUpperCase() : <User size={20} />}
+                </div>
+                <button 
+                  onClick={handleLogout} 
+                  className="ml-2 p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors"
+                  title="Logout"
+                >
+                   <LogOut className="w-5 h-5" />
+                </button>
+             </div>
+          </div>
+        </header>
+
+        {/* Scrollable Content Body */}
+        <main className="flex-1 overflow-y-auto bg-gray-50 p-6">
+          <div className="max-w-6xl mx-auto">
+            {/* Stats Cards - Only show on Applicants or Verification tab */}
+            {(activeTab === 'applicants' || activeTab === 'verification') && (
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center hover:shadow-md transition-shadow">
+                  <div className="p-3 bg-blue-100 text-blue-600 rounded-xl mr-4">
+                    <Users className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500 font-medium">Total Pelamar</p>
+                    <p className="text-2xl font-bold text-gray-900">{applicants.length}</p>
+                  </div>
+                </div>
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center hover:shadow-md transition-shadow">
+                  <div className="p-3 bg-yellow-100 text-yellow-600 rounded-xl mr-4">
+                    <Clock className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500 font-medium">Menunggu</p>
+                    <p className="text-2xl font-bold text-gray-900">
+                      {applicants.filter(a => a.status === 'pending').length}
+                    </p>
+                  </div>
+                </div>
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center hover:shadow-md transition-shadow">
+                  <div className="p-3 bg-green-100 text-green-600 rounded-xl mr-4">
+                    <CheckCircle className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500 font-medium">Lolos</p>
+                    <p className="text-2xl font-bold text-gray-900">
+                      {applicants.filter(a => a.status === 'verified').length}
+                    </p>
+                  </div>
+                </div>
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center hover:shadow-md transition-shadow">
+                  <div className="p-3 bg-red-100 text-red-600 rounded-xl mr-4">
+                    <XCircle className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500 font-medium">Ditolak</p>
+                    <p className="text-2xl font-bold text-gray-900">
+                      {applicants.filter(a => a.status === 'rejected').length}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* User Management Section */}
+            {activeTab === 'users' ? (
+              <div className="space-y-6 animate-in fade-in duration-500">
+                <div className="bg-white p-6 rounded-2xl shadow-lg border border-gray-100">
+                  <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center">
+                    <Users className="w-5 h-5 mr-2 text-tangerang-purple" />
+                    Tambah User Admin Baru
+                  </h2>
+                  <form onSubmit={handleCreateUser} className="flex flex-col md:flex-row gap-4 items-end">
+                    <div className="flex-1 w-full">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Username</label>
+                      <input
+                        type="text"
+                        required
+                        value={newUser.username}
+                        onChange={e => setNewUser({...newUser, username: e.target.value})}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-tangerang-purple focus:border-transparent outline-none transition-all"
+                        placeholder="Masukkan username"
+                      />
+                    </div>
+                    <div className="flex-1 w-full">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                      <input
+                        type="password"
+                        required
+                        value={newUser.password}
+                        onChange={e => setNewUser({...newUser, password: e.target.value})}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-tangerang-purple focus:border-transparent outline-none transition-all"
+                        placeholder="Masukkan password"
+                      />
+                    </div>
+                    <div className="flex-1 w-full">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+                      <select
+                        value={newUser.role}
+                        onChange={e => setNewUser({...newUser, role: e.target.value as 'superadmin' | 'verificator'})}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-tangerang-purple focus:border-transparent outline-none transition-all"
+                      >
+                        <option value="verificator">Verificator</option>
+                        <option value="superadmin">Superadmin</option>
+                      </select>
+                    </div>
+                    <button
+                      type="submit"
+                      className="px-6 py-2 bg-tangerang-purple text-white rounded-lg hover:bg-tangerang-dark transition font-medium shadow-md hover:shadow-lg"
+                    >
+                      Tambah
+                    </button>
+                  </form>
+                </div>
+
+                <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+                  <div className="p-6 border-b border-gray-100">
+                    <h2 className="text-lg font-bold text-gray-800">Daftar User Admin</h2>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                      <thead className="bg-gray-50 text-gray-600 text-xs uppercase font-semibold">
+                        <tr>
+                          <th className="px-6 py-4">Username</th>
+                          <th className="px-6 py-4">Role</th>
+                          <th className="px-6 py-4">Dibuat Pada</th>
+                          <th className="px-6 py-4">Aksi</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {adminUsers.map(user => (
+                          <tr key={user.id} className="hover:bg-gray-50 transition">
+                            <td className="px-6 py-4 font-semibold text-gray-900">{user.username}</td>
+                            <td className="px-6 py-4">
+                              <span className={`px-3 py-1 rounded-full text-xs font-medium border ${
+                                user.role === 'superadmin' 
+                                  ? 'bg-purple-50 text-purple-700 border-purple-100' 
+                                  : 'bg-blue-50 text-blue-700 border-blue-100'
+                              }`}>
+                                {user.role}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 text-gray-500 text-sm">
+                              {new Date(user.createdAt).toLocaleDateString('id-ID')}
+                            </td>
+                            <td className="px-6 py-4">
+                              <button
+                                onClick={() => handleDeleteUser(user.id)}
+                                className="text-red-600 hover:text-red-800 text-sm font-medium hover:underline"
+                              >
+                                Hapus
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                        {adminUsers.length === 0 && (
+                          <tr>
+                            <td colSpan={4} className="px-6 py-8 text-center text-gray-500">Belum ada user lain.</td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            ) : (
+            /* Table Section */
+            <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden animate-in fade-in duration-500">
+              <div className="p-6 border-b border-gray-100 flex flex-col md:flex-row justify-between gap-4">
+                <h2 className="text-lg font-bold text-gray-800 flex items-center">
+                  {activeTab === 'applicants' ? (
+                    <>
+                      <LayoutDashboard className="w-5 h-5 mr-2 text-tangerang-purple" />
+                      Data Lengkap Pelamar
+                    </>
+                  ) : (
+                    <>
+                      <FileText className="w-5 h-5 mr-2 text-tangerang-purple" />
+                      Verifikasi Berkas Masuk
+                    </>
+                  )}
+                </h2>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Search className="h-4 w-4 text-gray-400" />
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="Cari nama, email..."
+                    className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-tangerang-purple focus:border-transparent outline-none w-full md:w-64 transition-all"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead className="bg-gray-50 text-gray-600 text-xs uppercase font-semibold">
+                    <tr>
+                      {activeTab === 'applicants' ? (
+                        <>
+                          <th className="px-6 py-4">Nama Lengkap</th>
+                          <th className="px-6 py-4">NIK</th>
+                          <th className="px-6 py-4">Jenis Kelamin</th>
+                          <th className="px-6 py-4">Pendidikan</th>
+                          <th className="px-6 py-4">Posisi</th>
+                          <th className="px-6 py-4">Email</th>
+                        </>
+                      ) : (
+                        <>
+                          <th className="px-6 py-4">Pelamar</th>
+                          <th className="px-6 py-4">Posisi</th>
+                          <th className="px-6 py-4">Verifikasi Berkas</th>
+                          <th className="px-6 py-4">Status Akhir</th>
+                          <th className="px-6 py-4">Aksi</th>
+                        </>
+                      )}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {loading ? (
+                      <tr><td colSpan={6} className="px-6 py-8 text-center text-gray-500">Loading data...</td></tr>
+                    ) : filteredApplicants.length === 0 ? (
+                      <tr><td colSpan={6} className="px-6 py-8 text-center text-gray-500">Tidak ada data pelamar.</td></tr>
+                    ) : (
+                      filteredApplicants.map((app) => (
+                        <tr key={app.id} className="hover:bg-gray-50 transition">
+                          {activeTab === 'applicants' ? (
+                            <>
+                              <td className="px-6 py-4 font-semibold text-gray-900">{app.name}</td>
+                              <td className="px-6 py-4 text-gray-600 font-mono text-sm">{app.nik}</td>
+                              <td className="px-6 py-4 text-gray-600">{app.gender}</td>
+                              <td className="px-6 py-4 text-gray-600">{app.education}</td>
+                              <td className="px-6 py-4">
+                                <span className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium border border-blue-100">
+                                  {app.position}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4 text-gray-500 text-sm">{app.email}</td>
+                            </>
+                          ) : (
+                            <>
+                              <td className="px-6 py-4">
+                                <div className="flex items-center">
+                                  {app.pasFotoPath ? (
+                                    <div className="h-10 w-10 flex-shrink-0 mr-3 cursor-pointer" onClick={() => window.open(`${app.pasFotoPath}`, '_blank')}>
+                                      <img className="h-10 w-10 rounded-full object-cover border border-gray-200" src={`${app.pasFotoPath}`} alt="" />
+                                    </div>
+                                  ) : (
+                                    <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center mr-3 text-gray-500">
+                                      <User size={20} />
+                                    </div>
+                                  )}
+                                  <div>
+                                    <div className="text-sm font-medium text-gray-900">{app.name}</div>
+                                    <div className="text-sm text-gray-500">{app.email}</div>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="px-6 py-4">
+                                <span className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium border border-blue-100">
+                                  {app.position}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4">
+                                <div className="flex gap-2">
+                                  {[
+                                    { key: 'ktp', label: 'KTP', status: app.ktpStatus, path: app.ktpPath },
+                                    { key: 'ijazah', label: 'Ijazah', status: app.ijazahStatus, path: app.ijazahPath },
+                                    { key: 'str', label: 'STR', status: app.strStatus, path: app.strPath },
+                                    { key: 'sertifikat', label: 'Sert', status: app.sertifikatStatus, path: app.sertifikatPath },
+                                  ].map((file) => (
+                                    <button
+                                      key={file.key}
+                                      onClick={() => openPreview(app, file.key, file.label, file.path!, file.status!)}
+                                      className={`px-2 py-1 text-xs font-medium rounded border transition ${
+                                        file.status === 'valid' ? 'bg-green-50 text-green-700 border-green-200' :
+                                        file.status === 'invalid' ? 'bg-red-50 text-red-700 border-red-200' :
+                                        'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
+                                      }`}
+                                      title={file.label}
+                                    >
+                                      {file.label}
+                                    </button>
+                                  ))}
+                                </div>
+                              </td>
+                              <td className="px-6 py-4">
+                                {app.status === 'verified' && <span className="text-green-600 font-medium flex items-center"><CheckCircle className="w-4 h-4 mr-1"/> Lolos</span>}
+                                {app.status === 'rejected' && <span className="text-red-600 font-medium flex items-center"><XCircle className="w-4 h-4 mr-1"/> Ditolak</span>}
+                                {app.status === 'pending' && <span className="text-yellow-600 font-medium flex items-center"><Clock className="w-4 h-4 mr-1"/> Menunggu</span>}
+                              </td>
+                              <td className="px-6 py-4">
+                                {/* Actions placeholder if needed */}
+                              </td>
+                            </>
+                          )}
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            )}
+          </div>
+        </main>
+      </div>
+
+      {/* Preview Modal */}
+      {previewFile && selectedApplicant && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl w-full max-w-6xl h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+            <div className="p-4 border-b flex justify-between items-center bg-gray-50">
+              <div>
+                <h3 className="text-lg font-bold text-gray-800">Verifikasi Berkas: {previewFile.label}</h3>
+                <p className="text-sm text-gray-500">Pelamar: {selectedApplicant.name}</p>
+              </div>
+              <button 
+                onClick={() => setPreviewFile(null)}
+                className="p-2 hover:bg-gray-200 rounded-full transition"
+              >
+                <LogOut className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="flex-1 bg-gray-100 p-4 overflow-hidden relative">
+              <iframe 
+                src={previewFile.url} 
+                className="w-full h-full rounded-lg border bg-white shadow-inner"
+                title="Preview"
+              />
+            </div>
+
+            <div className="p-4 border-t bg-white flex justify-between items-center">
+              <div className="text-sm text-gray-500">
+                <span className={`font-medium px-2 py-1 rounded ${
+                  previewFile.status === 'valid' ? 'bg-green-100 text-green-700' : 
+                  previewFile.status === 'invalid' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'
+                }`}>
+                  Status Saat Ini: {previewFile.status === 'valid' ? 'Sesuai' : previewFile.status === 'invalid' ? 'Tidak Sesuai' : 'Belum Diperiksa'}
+                </span>
+                {previewFile.verifiedBy && (
+                  <p className="mt-1 text-xs">
+                    <Clock className="w-3 h-3 inline mr-1" />
+                    Diverifikasi oleh {previewFile.verifiedBy} pada {new Date(previewFile.verifiedAt!).toLocaleString('id-ID')}
+                  </p>
+                )}
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => verifyFile('invalid')}
+                  className="px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition font-medium flex items-center border border-red-200"
+                >
+                  <XCircle className="w-4 h-4 mr-2" />
+                  Tolak Berkas
+                </button>
+                <button
+                  onClick={() => verifyFile('valid')}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-medium flex items-center shadow-md hover:shadow-lg"
+                >
+                  <CheckCircle className="w-4 h-4 mr-2" />
+                  Verifikasi Sesuai
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default Dashboard;

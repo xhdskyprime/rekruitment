@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cek Status Lamaran - RSUD Tigaraksa</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="/css/tangerang-theme.css" rel="stylesheet">
+</head>
+<body>
+    
+    <!-- Top Header -->
+    <div class="top-header">
+        <div class="container">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <i class="fas fa-phone-alt me-2"></i>(021) 5990xxx
+                    <span class="mx-2">|</span>
+                    <i class="fas fa-envelope me-2"></i>info@rsud-tigaraksa.tangerangkab.go.id
+                </div>
+                <div>
+                    <a href="/" class="text-white text-decoration-none me-3"><i class="fas fa-home me-1"></i> Beranda</a>
+                    <a href="/admin" class="text-white text-decoration-none"><i class="fas fa-user-lock me-1"></i> Admin</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Header -->
+    <header class="main-header">
+        <div class="container">
+            <div class="brand-container">
+                <img src="https://upload.wikimedia.org/wikipedia/commons/4/4b/Lambang_Kabupaten_Tangerang.png" alt="Logo Kab Tangerang" class="brand-logo">
+                <div class="brand-text">
+                    <h1>PEMERINTAH KABUPATEN TANGERANG</h1>
+                    <h2>UPTD RSUD TIGARAKSA</h2>
+                    <p>Jl. Raya Tigaraksa No. 1, Kabupaten Tangerang, Banten</p>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <div class="container">
+            <div class="row justify-content-center">
+                <div class="col-md-8">
+                    <div class="card shadow-lg">
+                        <div class="card-header">
+                            <i class="fas fa-search me-2"></i>Cek Status Lamaran
+                        </div>
+                        <div class="card-body p-4">
+                            <div class="text-center mb-4">
+                                <i class="fas fa-id-card fa-3x text-secondary mb-3"></i>
+                                <h5>Pantau Proses Seleksi Anda</h5>
+                                <p class="text-muted">Masukkan email yang Anda gunakan saat mendaftar untuk melihat status terkini.</p>
+                            </div>
+
+                            <form action="/status" method="GET" class="mb-4">
+                                <div class="input-group input-group-lg">
+                                    <span class="input-group-text bg-light"><i class="fas fa-envelope"></i></span>
+                                    <input type="email" class="form-control" name="email" placeholder="Contoh: nama@email.com" required>
+                                    <button class="btn btn-primary" type="submit">Cek Status</button>
+                                </div>
+                            </form>
+
+                            <% if (applicant) { %>
+                                <div class="card border-0 bg-light">
+                                    <div class="card-body">
+                                        <h5 class="card-title border-bottom pb-2 mb-3">Detail Pelamar</h5>
+                                        <div class="row mb-2">
+                                            <div class="col-sm-4 text-muted">Nama Lengkap</div>
+                                            <div class="col-sm-8 fw-bold"><%= applicant.name %></div>
+                                        </div>
+                                        <div class="row mb-2">
+                                            <div class="col-sm-4 text-muted">Posisi</div>
+                                            <div class="col-sm-8"><%= applicant.position %></div>
+                                        </div>
+                                        <div class="row mb-3">
+                                            <div class="col-sm-4 text-muted">Status</div>
+                                            <div class="col-sm-8">
+                                                <% if (applicant.status === 'pending') { %>
+                                                    <span class="badge bg-warning text-dark"><i class="fas fa-clock me-1"></i>Menunggu Verifikasi</span>
+                                                    <div class="small text-muted mt-1">Berkas Anda sedang direview oleh tim HRD.</div>
+                                                <% } else if (applicant.status === 'verified') { %>
+                                                    <span class="badge bg-success"><i class="fas fa-check-circle me-1"></i>Lolos Verifikasi</span>
+                                                    <div class="small text-success mt-1">Selamat! Berkas Anda telah disetujui.</div>
+                                                <% } else { %>
+                                                    <span class="badge bg-danger"><i class="fas fa-times-circle me-1"></i>Tidak Lolos</span>
+                                                    <div class="small text-danger mt-1">Mohon maaf, berkas Anda belum memenuhi syarat.</div>
+                                                <% } %>
+                                            </div>
+                                        </div>
+
+                                        <% if (applicant.status === 'verified' && applicant.examCardPath) { %>
+                                            <div class="alert alert-success mt-3">
+                                                <div class="d-flex align-items-center">
+                                                    <i class="fas fa-file-pdf fa-2x me-3"></i>
+                                                    <div>
+                                                        <strong>Kartu Ujian Tersedia!</strong><br>
+                                                        Silakan unduh dan cetak kartu ujian Anda untuk dibawa saat tes.
+                                                    </div>
+                                                </div>
+                                                <hr>
+                                                <a href="<%= applicant.examCardPath %>" class="btn btn-success w-100" download>
+                                                    <i class="fas fa-download me-2"></i>Download Kartu Ujian (PDF)
+                                                </a>
+                                            </div>
+                                        <% } %>
+                                    </div>
+                                </div>
+                            <% } else if (typeof applicant !== 'undefined') { %>
+                                <div class="alert alert-warning text-center">
+                                    <i class="fas fa-exclamation-triangle me-2"></i>Data pelamar dengan email tersebut tidak ditemukan.
+                                </div>
+                            <% } %>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="main-footer">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-6 mb-4">
+                    <h5 class="footer-title">RSUD TIGARAKSA</h5>
+                    <p class="text-white-50">Rumah Sakit Umum Daerah Tigaraksa berkomitmen memberikan pelayanan kesehatan terbaik bagi masyarakat Kabupaten Tangerang.</p>
+                </div>
+                <div class="col-md-3 mb-4">
+                    <h5 class="footer-title">Tautan Cepat</h5>
+                    <a href="/" class="footer-link">Beranda</a>
+                    <a href="/status" class="footer-link">Cek Status</a>
+                    <a href="#" class="footer-link">Informasi Rekrutmen</a>
+                </div>
+                <div class="col-md-3 mb-4">
+                    <h5 class="footer-title">Hubungi Kami</h5>
+                    <p class="text-white-50 mb-1"><i class="fas fa-map-marker-alt me-2"></i>Jl. Raya Tigaraksa No. 1</p>
+                    <p class="text-white-50 mb-1"><i class="fas fa-phone me-2"></i>(021) 5990xxx</p>
+                </div>
+            </div>
+            <div class="copyright">
+                &copy; 2025 Pemerintah Kabupaten Tangerang - RSUD Tigaraksa. All rights reserved.
+            </div>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
