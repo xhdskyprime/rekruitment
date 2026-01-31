@@ -226,18 +226,6 @@ router.delete('/applicant/:id', isAuthenticated, async (req, res) => {
         res.status(500).json({ error: 'Gagal menghapus data pelamar' });
     }
 });
-        const applicant = await Applicant.findByPk(req.params.id);
-        if (applicant) {
-            applicant.status = 'rejected';
-            applicant.examCardPath = null;
-            await applicant.save();
-        }
-        res.redirect('/admin');
-    } catch (error) {
-        console.error(error);
-        res.status(500).send('Error rejecting applicant');
-    }
-});
 
 // User Management Routes (Superadmin Only)
 router.get('/users', isSuperAdmin, async (req, res) => {
