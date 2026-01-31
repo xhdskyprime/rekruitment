@@ -103,6 +103,7 @@ const Dashboard = () => {
       }
       setCurrentUserRole(authRes.data.role);
       setCurrentUsername(authRes.data.username || 'Admin');
+      setDbType(authRes.data.dbType || ''); // Set Database Type
 
       // Fetch applicants
       await fetchApplicants();
