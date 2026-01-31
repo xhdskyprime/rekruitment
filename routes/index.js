@@ -63,7 +63,7 @@ router.post('/register', (req, res, next) => {
             return res.status(400).json({ error: 'Harap upload semua dokumen yang diminta (KTP, Ijazah, STR, Sertifikat, Pas Foto).' });
         }
 
-        const { name, nik, gender, birthDate, education, email, position } = req.body;
+        const { name, nik, gender, birthDate, education, email, phoneNumber, position } = req.body;
         console.log('Received body:', req.body); // Debugging
         
         // Helper to upload to Drive and get ID

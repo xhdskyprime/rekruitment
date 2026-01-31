@@ -59,6 +59,7 @@ const Home = () => {
     data.append('birthDate', formData.birthDate);
     data.append('education', formData.education);
     data.append('email', formData.email);
+    data.append('phoneNumber', formData.phoneNumber);
     data.append('position', formData.position);
     
     if (files.ktp) data.append('ktp', files.ktp);
