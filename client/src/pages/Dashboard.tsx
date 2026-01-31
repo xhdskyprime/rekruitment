@@ -530,13 +530,13 @@ const Dashboard = () => {
                   </div>
                 </div>
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center hover:shadow-md transition-shadow">
-                  <div className="p-3 bg-red-100 text-red-600 rounded-xl mr-4">
-                    <XCircle className="w-6 h-6" />
+                  <div className={`p-3 rounded-xl mr-4 ${dbType.includes('PostgreSQL') ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
+                    <div className="w-6 h-6 flex items-center justify-center font-bold text-xs border-2 border-current rounded-full">DB</div>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-500 font-medium">Ditolak</p>
-                    <p className="text-2xl font-bold text-gray-900">
-                      {applicants.filter(a => a.status === 'rejected').length}
+                    <p className="text-sm text-gray-500 font-medium">Database Status</p>
+                    <p className="text-lg font-bold text-gray-900 truncate max-w-[150px]" title={dbType}>
+                      {dbType || 'Loading...'}
                     </p>
                   </div>
                 </div>
