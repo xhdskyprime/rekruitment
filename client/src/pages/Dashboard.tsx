@@ -3,7 +3,7 @@ import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { 
   Users, CheckCircle, XCircle, FileText, 
-  LogOut, Search, Clock, Menu, LayoutDashboard, Shield, User
+  LogOut, Search, Clock, Menu, LayoutDashboard, Shield, User, Printer
 } from 'lucide-react';
 
 interface Applicant {
@@ -188,6 +188,154 @@ const Dashboard = () => {
     app.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
     app.position.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const handlePrintCard = (applicant: Applicant) => {
+    const printWindow = window.open('', '_blank', 'width=800,height=600');
+    if (printWindow) {
+        printWindow.document.write(`
+            <html>
+            <head>
+                <title>Kartu Ujian - ${applicant.name}</title>
+                <style>
+                    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 40px; background: #f0f0f0; }
+                    .card { 
+                        background: white;
+                        border: 1px solid #ddd; 
+                        padding: 30px; 
+                        max-width: 700px; 
+                        margin: 0 auto; 
+                        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+                        position: relative;
+                        overflow: hidden;
+                    }
+                    .header { 
+                        text-align: center; 
+                        border-bottom: 3px double #4c1d95; 
+                        padding-bottom: 20px; 
+                        margin-bottom: 30px; 
+                    }
+                    .header h1 { margin: 0; font-size: 24px; color: #4c1d95; text-transform: uppercase; letter-spacing: 1px; }
+                    .header h2 { margin: 5px 0 0; font-size: 16px; color: #666; }
+                    .content { display: flex; gap: 30px; }
+                    .photo-container { 
+                        flex-shrink: 0;
+                        width: 150px; 
+                        height: 200px; 
+                        border: 1px solid #ddd;
+                        padding: 5px;
+                        background: #fff;
+                    }
+                    .photo { 
+                        width: 100%; 
+                        height: 100%; 
+                        object-fit: cover; 
+                        background: #eee; 
+                    }
+                    .details { flex: 1; }
+                    .row { 
+                        margin-bottom: 12px; 
+                        display: flex;
+                        border-bottom: 1px solid #f0f0f0;
+                        padding-bottom: 5px;
+                    }
+                    .label { 
+                        font-weight: 600; 
+                        width: 140px; 
+                        color: #555;
+                    }
+                    .value {
+                        flex: 1;
+                        color: #000;
+                        font-weight: 500;
+                    }
+                    .footer { 
+                        margin-top: 40px; 
+                        text-align: center; 
+                        font-size: 12px; 
+                        color: #888;
+                        border-top: 1px solid #eee;
+                        padding-top: 20px;
+                    }
+                    .watermark {
+                        position: absolute;
+                        top: 50%;
+                        left: 50%;
+                        transform: translate(-50%, -50%) rotate(-45deg);
+                        font-size: 100px;
+                        color: rgba(76, 29, 149, 0.05);
+                        pointer-events: none;
+                        font-weight: bold;
+                        z-index: 0;
+                    }
+                    @media print {
+                        body { padding: 0; background: white; }
+                        .card { box-shadow: none; border: 1px solid #ccc; }
+                        .no-print { display: none; }
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="card">
+                    <div class="watermark">RSUD</div>
+                    <div class="header">
+                        <h1>KARTU PESERTA UJIAN</h1>
+                        <h2>REKRUTMEN PEGAWAI RSUD TIGARAKSA</h2>
+                    </div>
+                    <div class="content">
+                        <div class="photo-container">
+                            ${applicant.pasFotoPath 
+                                ? `<img src="${applicant.pasFotoPath}" class="photo" alt="Foto Peserta" crossorigin="anonymous" />` 
+                                : '<div class="photo" style="display:flex;align-items:center;justify-content:center;color:#999;font-size:12px;">No Photo</div>'
+                            }
+                        </div>
+                        <div class="details">
+                            <div class="row">
+                                <span class="label">Nomor Peserta</span>
+                                <span class="value">: ${applicant.id.toString().padStart(6, '0')}</span>
+                            </div>
+                            <div class="row">
+                                <span class="label">Nama Lengkap</span>
+                                <span class="value">: ${applicant.name}</span>
+                            </div>
+                            <div class="row">
+                                <span class="label">NIK</span>
+                                <span class="value">: ${applicant.nik}</span>
+                            </div>
+                            <div class="row">
+                                <span class="label">Posisi Dilamar</span>
+                                <span class="value">: ${applicant.position}</span>
+                            </div>
+                            <div class="row">
+                                <span class="label">Lokasi Ujian</span>
+                                <span class="value">: RSUD Tigaraksa (Gedung Utama)</span>
+                            </div>
+                            <div class="row">
+                                <span class="label">Jadwal Ujian</span>
+                                <span class="value">: Menunggu Informasi Selanjutnya</span>
+                            </div>
+                            <div class="row">
+                                <span class="label">Status</span>
+                                <span class="value" style="color:green;font-weight:bold">: TERVERIFIKASI</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="footer">
+                        <p>Kartu ini adalah bukti sah kepesertaan ujian.</p>
+                        <p>Wajib dibawa beserta KTP asli saat pelaksanaan ujian.</p>
+                        <p>Dicetak pada: ${new Date().toLocaleString('id-ID')}</p>
+                    </div>
+                </div>
+                <script>
+                    setTimeout(() => {
+                        window.print();
+                    }, 500); // Delay slightly to ensure image load
+                </script>
+            </body>
+            </html>
+        `);
+        printWindow.document.close();
+    }
+  };
 
   return (
     <div className="flex h-screen bg-gray-50 font-sans overflow-hidden">
@@ -570,7 +718,16 @@ const Dashboard = () => {
                                 {app.status === 'pending' && <span className="text-yellow-600 font-medium flex items-center"><Clock className="w-4 h-4 mr-1"/> Menunggu</span>}
                               </td>
                               <td className="px-6 py-4">
-                                {/* Actions placeholder if needed */}
+                                {app.status === 'verified' && (
+                                  <button
+                                    onClick={() => handlePrintCard(app)}
+                                    className="flex items-center px-3 py-1.5 bg-tangerang-purple text-white text-xs font-medium rounded hover:bg-tangerang-dark transition shadow-sm"
+                                    title="Cetak Kartu Ujian"
+                                  >
+                                    <Printer className="w-4 h-4 mr-1.5" />
+                                    Cetak Kartu
+                                  </button>
+                                )}
                               </td>
                             </>
                           )}
