@@ -30,6 +30,14 @@ const driveService = {
         const auth = getAuth();
         if (!auth) throw new Error("Google Auth credentials missing");
         
+        // DEBUG: Log Service Account Email for verification
+        try {
+            const client = await auth.getClient();
+            console.log("Service Account Email:", client.email); 
+        } catch (e) {
+            console.log("Could not retrieve SA email for logging");
+        }
+
         const drive = google.drive({ version: 'v3', auth });
         
         const bufferStream = new stream.PassThrough();
@@ -43,6 +51,25 @@ const driveService = {
 
         if (!targetFolderId) {
             throw new Error("GOOGLE_DRIVE_FOLDER_ID is missing. Service Accounts cannot upload to their own root directory (0 quota). Please set the folder ID in environment variables.");
+        }
+
+        console.log(`Attempting upload to Folder ID: ${targetFolderId}`);
+
+        // VERIFY FOLDER ACCESS & PERMISSION BEFORE UPLOAD
+        try {
+            const folder = await drive.files.get({
+                fileId: targetFolderId,
+                fields: 'id, name, capabilities'
+            });
+            console.log(`Target Folder found: ${folder.data.name} (ID: ${folder.data.id})`);
+            console.log(`Can add children: ${folder.data.capabilities.canAddChildren}`);
+            
+            if (!folder.data.capabilities.canAddChildren) {
+                throw new Error(`Service Account does not have write permission to folder ${targetFolderId}. Please share the folder with Editor role.`);
+            }
+        } catch (error) {
+            console.error(`Failed to access target folder ${targetFolderId}:`, error.message);
+            throw new Error(`Service Account cannot access folder ${targetFolderId}. Check permissions or Folder ID. Details: ${error.message}`);
         }
 
         const fileMetadata = {
