@@ -72,6 +72,15 @@ router.post('/register', (req, res, next) => {
              return '/file/proxy/' + driveFile.id; // Return proxy URL
         };
 
+        // Upload files in parallel for better performance
+        const [ktpPath, ijazahPath, strPath, sertifikatPath, pasFotoPath] = await Promise.all([
+            uploadToDrive(files.ktp[0]),
+            uploadToDrive(files.ijazah[0]),
+            uploadToDrive(files.str[0]),
+            uploadToDrive(files.sertifikat[0]),
+            uploadToDrive(files.pasFoto[0])
+        ]);
+
         const applicant = await Applicant.create({
             name,
             nik,
@@ -79,11 +88,11 @@ router.post('/register', (req, res, next) => {
             education,
             email,
             position,
-            ktpPath: await uploadToDrive(files.ktp[0]),
-            ijazahPath: await uploadToDrive(files.ijazah[0]),
-            strPath: await uploadToDrive(files.str[0]),
-            sertifikatPath: await uploadToDrive(files.sertifikat[0]),
-            pasFotoPath: await uploadToDrive(files.pasFoto[0])
+            ktpPath,
+            ijazahPath,
+            strPath,
+            sertifikatPath,
+            pasFotoPath
         });
 
         res.status(201).json({ success: true, applicant });

@@ -72,25 +72,8 @@ const driveService = {
 
         console.log(`Attempting upload to Folder ID: ${targetFolderId}`);
 
-        // VERIFY FOLDER ACCESS & PERMISSION BEFORE UPLOAD
-        // Note: For OAuth2, we assume the user has access. 
-        // We only strictly check permissions if using Service Account (auth.email exists)
-        try {
-            const folder = await drive.files.get({
-                fileId: targetFolderId,
-                fields: 'id, name, capabilities'
-            });
-            console.log(`Target Folder found: ${folder.data.name} (ID: ${folder.data.id})`);
-            
-            // Only throw for SA if strict check is needed, but for OAuth user might own it
-            if (!folder.data.capabilities.canAddChildren) {
-                console.warn(`WARNING: Account might not have write permission to folder ${targetFolderId}`);
-            }
-        } catch (error) {
-            console.error(`Failed to access target folder ${targetFolderId}:`, error.message);
-            // Don't block upload, let it fail naturally if needed, 
-            // but for OAuth it's better to try.
-        }
+        // OPTIMIZATION: Removed redundant folder permission check to speed up upload.
+        // The upload will fail automatically if permission is denied.
 
         const fileMetadata = {
             name: `${Date.now()}-${fileObject.originalname}`,
