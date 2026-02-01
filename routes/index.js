@@ -36,6 +36,7 @@ const uploadFields = upload.fields([
     { name: 'ijazah', maxCount: 1 },
     { name: 'str', maxCount: 1 },
     { name: 'sertifikat', maxCount: 1 },
+    { name: 'suratPernyataan', maxCount: 1 },
     { name: 'pasFoto', maxCount: 1 }
 ]);
 
@@ -59,8 +60,8 @@ router.post('/register', (req, res, next) => {
 }, async (req, res) => {
     try {
         const files = req.files || {};
-        if (!files.ktp || !files.ijazah || !files.str || !files.sertifikat || !files.pasFoto) {
-            return res.status(400).json({ error: 'Harap upload semua dokumen yang diminta (KTP, Ijazah, STR, Sertifikat, Pas Foto).' });
+        if (!files.ktp || !files.ijazah || !files.str || !files.sertifikat || !files.suratPernyataan || !files.pasFoto) {
+            return res.status(400).json({ error: 'Harap upload semua dokumen yang diminta (KTP, Ijazah, STR, Sertifikat, Surat Pernyataan, Pas Foto).' });
         }
 
         const { name, nik, gender, birthDate, education, email, phoneNumber, position } = req.body;
@@ -73,11 +74,12 @@ router.post('/register', (req, res, next) => {
         };
 
         // Upload files in parallel for better performance
-        const [ktpPath, ijazahPath, strPath, sertifikatPath, pasFotoPath] = await Promise.all([
+        const [ktpPath, ijazahPath, strPath, sertifikatPath, suratPernyataanPath, pasFotoPath] = await Promise.all([
             uploadToDrive(files.ktp[0]),
             uploadToDrive(files.ijazah[0]),
             uploadToDrive(files.str[0]),
             uploadToDrive(files.sertifikat[0]),
+            uploadToDrive(files.suratPernyataan[0]),
             uploadToDrive(files.pasFoto[0])
         ]);
 
@@ -94,6 +96,7 @@ router.post('/register', (req, res, next) => {
             ijazahPath,
             strPath,
             sertifikatPath,
+            suratPernyataanPath,
             pasFotoPath
         });
 

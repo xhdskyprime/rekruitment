@@ -49,6 +49,7 @@ const Applicant = sequelize.define('Applicant', {
     ijazahPath: { type: DataTypes.STRING, allowNull: false },
     strPath: { type: DataTypes.STRING, allowNull: false },
     sertifikatPath: { type: DataTypes.STRING, allowNull: false },
+    suratPernyataanPath: { type: DataTypes.STRING, allowNull: false },
     
     // Verification Status per File
     // Values: 'pending', 'valid' (Sesuai), 'invalid' (Tidak Sesuai)
@@ -79,6 +80,13 @@ const Applicant = sequelize.define('Applicant', {
     },
     sertifikatVerifiedAt: { type: DataTypes.DATE, allowNull: true },
     sertifikatVerifiedBy: { type: DataTypes.STRING, allowNull: true },
+
+    suratPernyataanStatus: { 
+        type: DataTypes.ENUM('pending', 'valid', 'invalid'), 
+        defaultValue: 'pending' 
+    },
+    suratPernyataanVerifiedAt: { type: DataTypes.DATE, allowNull: true },
+    suratPernyataanVerifiedBy: { type: DataTypes.STRING, allowNull: true },
 
     // Global Status
     status: {

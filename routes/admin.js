@@ -108,7 +108,7 @@ router.post('/verify-file/:id', isAuthenticated, async (req, res) => {
         }
 
         // Update specific file status
-        if (['ktp', 'ijazah', 'str', 'sertifikat'].includes(fileType)) {
+        if (['ktp', 'ijazah', 'str', 'sertifikat', 'suratPernyataan'].includes(fileType)) {
             applicant[`${fileType}Status`] = status;
             
             // Log verification details
@@ -131,7 +131,8 @@ router.post('/verify-file/:id', isAuthenticated, async (req, res) => {
             applicant.ktpStatus, 
             applicant.ijazahStatus, 
             applicant.strStatus, 
-            applicant.sertifikatStatus
+            applicant.sertifikatStatus,
+            applicant.suratPernyataanStatus
         ];
 
         console.log(`[Verify] Statuses for applicant ${applicant.id}:`, statuses);

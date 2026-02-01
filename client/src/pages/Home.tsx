@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
-import { Upload, CheckCircle, AlertCircle, FileText, Send } from 'lucide-react';
+import { Upload, CheckCircle, AlertCircle, FileText, Send, Download } from 'lucide-react';
 
 const Home = () => {
   const [formData, setFormData] = useState({
@@ -20,6 +20,7 @@ const Home = () => {
     ijazah: null,
     str: null,
     sertifikat: null,
+    suratPernyataan: null,
     pasFoto: null
   });
 
@@ -67,6 +68,7 @@ const Home = () => {
     if (files.ijazah) data.append('ijazah', files.ijazah);
     if (files.str) data.append('str', files.str);
     if (files.sertifikat) data.append('sertifikat', files.sertifikat);
+    if (files.suratPernyataan) data.append('suratPernyataan', files.suratPernyataan);
     if (files.pasFoto) data.append('pasFoto', files.pasFoto);
 
     try {
@@ -303,11 +305,30 @@ const Home = () => {
               </h3>
 
               <div className="grid grid-cols-1 gap-4">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-2">
+                  <h4 className="font-semibold text-blue-800 mb-1 flex items-center">
+                    <Download className="w-4 h-4 mr-2" />
+                    Template Surat Pernyataan
+                  </h4>
+                  <p className="text-sm text-blue-600 mb-3">
+                    Silakan unduh template surat pernyataan, isi, tandatangani di atas materai, lalu scan dan upload kembali.
+                  </p>
+                  <a 
+                    href="/template-surat-pernyataan.doc" 
+                    download="Template_Surat_Pernyataan_RSUD_Tigaraksa.doc"
+                    className="inline-flex items-center px-4 py-2 bg-white border border-blue-300 rounded-md text-sm font-medium text-blue-700 hover:bg-blue-50 transition"
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    Download Template
+                  </a>
+                </div>
+
                 {[
                   { id: 'ktp', label: 'KTP', desc: 'Kartu Tanda Penduduk' },
                   { id: 'ijazah', label: 'Ijazah Terakhir', desc: 'Scan Asli' },
                   { id: 'str', label: 'STR', desc: 'Surat Tanda Registrasi' },
-                  { id: 'sertifikat', label: 'Sertifikat', desc: 'Sertifikat Keahlian' }
+                  { id: 'sertifikat', label: 'Sertifikat', desc: 'Sertifikat Keahlian' },
+                  { id: 'suratPernyataan', label: 'Surat Pernyataan', desc: 'Scan Asli Bermaterai' }
                 ].map((field) => (
                   <div key={field.id} className="relative border border-dashed border-gray-300 rounded-lg p-4 hover:bg-gray-50 transition group">
                     <div className="flex items-center justify-between">

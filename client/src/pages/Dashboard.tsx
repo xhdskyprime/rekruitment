@@ -198,7 +198,7 @@ const Dashboard = () => {
     try {
       await axios.post(
         `/admin/verify-file/${selectedApplicant.id}`, 
-        { fileType: previewFile.type.toLowerCase(), status },
+        { fileType: previewFile.type, status },
         { withCredentials: true }
       );
       
@@ -758,6 +758,7 @@ const Dashboard = () => {
                                     { key: 'ijazah', label: 'Ijazah', status: app.ijazahStatus, path: app.ijazahPath },
                                     { key: 'str', label: 'STR', status: app.strStatus, path: app.strPath },
                                     { key: 'sertifikat', label: 'Sert', status: app.sertifikatStatus, path: app.sertifikatPath },
+                                    { key: 'suratPernyataan', label: 'Pernyataan', status: app.suratPernyataanStatus, path: app.suratPernyataanPath },
                                   ].map((file) => (
                                     <button
                                       key={file.key}
