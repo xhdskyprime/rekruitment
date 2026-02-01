@@ -58,7 +58,6 @@ const Dashboard = () => {
   // User Management State
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
   const [currentUsername, setCurrentUsername] = useState<string>('');
-  const [dbType, setDbType] = useState<string>('');
   const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
   const [newUser, setNewUser] = useState({ username: '', password: '', role: 'verificator' });
 
@@ -103,7 +102,6 @@ const Dashboard = () => {
       }
       setCurrentUserRole(authRes.data.role);
       setCurrentUsername(authRes.data.username || 'Admin');
-      setDbType(authRes.data.dbType || ''); // Set Database Type
 
       // Fetch applicants
       await fetchApplicants();
