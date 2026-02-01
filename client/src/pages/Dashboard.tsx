@@ -34,6 +34,10 @@ interface Applicant {
   strVerifiedBy?: string;
   sertifikatVerifiedAt?: string;
   sertifikatVerifiedBy?: string;
+  suratPernyataanPath: string;
+  suratPernyataanStatus: string;
+  suratPernyataanVerifiedAt?: string;
+  suratPernyataanVerifiedBy?: string;
   pasFotoPath?: string;
   examCardPath: string | null;
   createdAt: string;
