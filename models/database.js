@@ -10,6 +10,12 @@ if (process.env.DATABASE_URL) {
         dialect: 'postgres',
         protocol: 'postgres',
         logging: false,
+        pool: {
+            max: 20, // Increased for production concurrency
+            min: 2,
+            acquire: 30000,
+            idle: 10000
+        },
         dialectOptions: {
             ssl: {
                 require: true,

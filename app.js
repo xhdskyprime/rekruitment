@@ -32,14 +32,14 @@ app.use(helmet({
 // Rate Limiting
 const limiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100, // limit each IP to 100 requests per windowMs
+    max: 1000, // Increased limit for launch (was 100)
     message: 'Too many requests from this IP, please try again later.'
 });
 app.use(limiter);
 
 // Middleware
 app.use(cors({
-    origin: 'http://localhost:5173',
+    origin: ['http://localhost:5173', process.env.CLIENT_URL || '*'], // Allow production domain
     credentials: true
 }));
 app.use(express.urlencoded({ extended: true }));
