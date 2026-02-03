@@ -26,6 +26,19 @@ const Home = () => {
 
   const [status, setStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
+  const [positions, setPositions] = useState<{ id: number, name: string }[]>([]);
+
+  React.useEffect(() => {
+    const fetchPositions = async () => {
+      try {
+        const res = await axios.get('/positions');
+        setPositions(res.data.positions || []);
+      } catch (e) {
+        setPositions([]);
+      }
+    };
+    fetchPositions();
+  }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -288,12 +301,20 @@ const Home = () => {
                   onChange={handleInputChange}
                 >
                   <option value="">-- Pilih Posisi --</option>
-                  <option value="Perawat">Perawat</option>
-                  <option value="Bidan">Bidan</option>
-                  <option value="Apoteker">Apoteker</option>
-                  <option value="Dokter Umum">Dokter Umum</option>
-                  <option value="Staff IT">Staff IT</option>
-                  <option value="Staff Administrasi">Staff Administrasi</option>
+                  {positions && positions.length > 0 ? (
+                    positions.map((p) => (
+                      <option key={p.id} value={p.name}>{p.name}</option>
+                    ))
+                  ) : (
+                    <>
+                      <option value="Perawat">Perawat</option>
+                      <option value="Bidan">Bidan</option>
+                      <option value="Apoteker">Apoteker</option>
+                      <option value="Dokter Umum">Dokter Umum</option>
+                      <option value="Staff IT">Staff IT</option>
+                      <option value="Staff Administrasi">Staff Administrasi</option>
+                    </>
+                  )}
                 </select>
               </div>
             </div>

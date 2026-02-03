@@ -3,7 +3,7 @@ import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { 
   Users, CheckCircle, XCircle, FileText, 
-  LogOut, Search, Clock, Menu, LayoutDashboard, Shield, User, Printer
+  LogOut, Search, Clock, Menu, LayoutDashboard, Shield, User, Printer, ChevronDown, X
 } from 'lucide-react';
 import JsBarcode from 'jsbarcode';
 
@@ -50,6 +50,12 @@ interface AdminUser {
   createdAt: string;
 }
 
+interface PositionItem {
+  id: number;
+  name: string;
+  createdAt: string;
+}
+
 const Dashboard = () => {
   const [applicants, setApplicants] = useState<Applicant[]>([]);
   const [loading, setLoading] = useState(true);
@@ -64,6 +70,8 @@ const Dashboard = () => {
   const [currentUsername, setCurrentUsername] = useState<string>('');
   const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
   const [newUser, setNewUser] = useState({ username: '', password: '', role: 'verificator' });
+  const [positions, setPositions] = useState<PositionItem[]>([]);
+  const [newPosition, setNewPosition] = useState<string>('');
 
   const navigate = useNavigate();
 
@@ -113,6 +121,7 @@ const Dashboard = () => {
       // If superadmin, fetch users
       if (authRes.data.role === 'superadmin') {
           fetchUsers();
+          fetchPositions();
       }
     } catch (error: any) {
       if (error.response?.status === 401) {
@@ -120,6 +129,38 @@ const Dashboard = () => {
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchPositions = async () => {
+    try {
+      const res = await axios.get('/admin/positions', { withCredentials: true });
+      setPositions(res.data.positions || []);
+    } catch (error) {
+      console.error('Failed to fetch positions', error);
+    }
+  };
+
+  const handleAddPosition = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const name = newPosition.trim();
+      if (!name) return;
+      await axios.post('/admin/positions', { name }, { withCredentials: true });
+      setNewPosition('');
+      fetchPositions();
+    } catch (error: any) {
+      alert(error.response?.data?.error || 'Gagal menambah posisi');
+    }
+  };
+
+  const handleDeletePosition = async (id: number) => {
+    if (!confirm('Yakin hapus posisi ini?')) return;
+    try {
+      await axios.delete(`/admin/positions/${id}`, { withCredentials: true });
+      fetchPositions();
+    } catch (error: any) {
+      alert(error.response?.data?.error || 'Gagal menghapus posisi');
     }
   };
 
@@ -597,6 +638,69 @@ const Dashboard = () => {
                   </form>
                 </div>
 
+                {currentUserRole === 'superadmin' && (
+                  <div className="bg-white p-6 rounded-2xl shadow-lg border border-gray-100">
+                    <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center">
+                      <Shield className="w-5 h-5 mr-2 text-tangerang-purple" />
+                      Master Posisi Dilamar
+                    </h2>
+                    <form onSubmit={handleAddPosition} className="flex flex-col md:flex-row gap-4 items-end mb-6">
+                      <div className="flex-1 w-full">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Nama Posisi</label>
+                        <input
+                          type="text"
+                          required
+                          value={newPosition}
+                          onChange={e => setNewPosition(e.target.value)}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-tangerang-purple focus:border-transparent outline-none transition-all"
+                          placeholder="Contoh: Perawat, Bidan, Apoteker"
+                        />
+                      </div>
+                      <button
+                        type="submit"
+                        className="px-6 py-2 bg-tangerang-purple text-white rounded-lg hover:bg-tangerang-dark transition font-medium shadow-md hover:shadow-lg"
+                      >
+                        Tambah Posisi
+                      </button>
+                    </form>
+
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left">
+                        <thead className="bg-gray-50 text-gray-600 text-xs uppercase font-semibold">
+                          <tr>
+                            <th className="px-6 py-4">Nama Posisi</th>
+                            <th className="px-6 py-4">Dibuat Pada</th>
+                            <th className="px-6 py-4">Aksi</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {positions.map(pos => (
+                            <tr key={pos.id} className="hover:bg-gray-50 transition">
+                              <td className="px-6 py-4 font-semibold text-gray-900">{pos.name}</td>
+                              <td className="px-6 py-4 text-gray-500 text-sm">
+                                {new Date(pos.createdAt).toLocaleDateString('id-ID')}
+                              </td>
+                              <td className="px-6 py-4">
+                                <button
+                                  onClick={() => handleDeletePosition(pos.id)}
+                                  className="text-red-600 hover:text-red-800 text-sm font-medium hover:underline"
+                                >
+                                  Hapus
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                          {positions.length === 0 && (
+                            <tr>
+                              <td colSpan={3} className="px-6 py-8 text-center text-gray-500">Belum ada posisi.</td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
                 <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
                   <div className="p-6 border-b border-gray-100">
                     <h2 className="text-lg font-bold text-gray-800">Daftar User Admin</h2>
@@ -616,13 +720,25 @@ const Dashboard = () => {
                           <tr key={user.id} className="hover:bg-gray-50 transition">
                             <td className="px-6 py-4 font-semibold text-gray-900">{user.username}</td>
                             <td className="px-6 py-4">
-                              <span className={`px-3 py-1 rounded-full text-xs font-medium border ${
-                                user.role === 'superadmin' 
-                                  ? 'bg-purple-50 text-purple-700 border-purple-100' 
-                                  : 'bg-blue-50 text-blue-700 border-blue-100'
-                              }`}>
-                                {user.role}
-                              </span>
+                              <div className="relative inline-block group">
+                                <select
+                                  value={user.role}
+                                  onChange={(e) => handleUpdateRole(user.id, e.target.value)}
+                                  className={`appearance-none pl-4 pr-9 py-1.5 rounded-full text-xs font-semibold border transition-all cursor-pointer focus:ring-2 focus:ring-offset-1 outline-none shadow-sm hover:shadow-md ${
+                                    user.role === 'superadmin' 
+                                      ? 'bg-purple-50 text-purple-700 border-purple-200 focus:ring-purple-400 hover:bg-purple-100' 
+                                      : 'bg-blue-50 text-blue-700 border-blue-200 focus:ring-blue-400 hover:bg-blue-100'
+                                  }`}
+                                >
+                                  <option value="superadmin">Superadmin</option>
+                                  <option value="verificator">Verificator</option>
+                                </select>
+                                <div className="absolute inset-y-0 right-0 flex items-center pr-2.5 pointer-events-none transition-transform duration-200 group-hover:translate-y-0.5">
+                                  <ChevronDown className={`w-3.5 h-3.5 ${
+                                    user.role === 'superadmin' ? 'text-purple-700' : 'text-blue-700'
+                                  }`} strokeWidth={2.5} />
+                                </div>
+                              </div>
                             </td>
                             <td className="px-6 py-4 text-gray-500 text-sm">
                               {new Date(user.createdAt).toLocaleDateString('id-ID')}
@@ -767,13 +883,17 @@ const Dashboard = () => {
                                     <button
                                       key={file.key}
                                       onClick={() => openPreview(app, file.key, file.label, file.path!, file.status!)}
-                                      className={`px-2 py-1 text-xs font-medium rounded border transition ${
-                                        file.status === 'valid' ? 'bg-green-50 text-green-700 border-green-200' :
-                                        file.status === 'invalid' ? 'bg-red-50 text-red-700 border-red-200' :
-                                        'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
+                                      className={`px-2.5 py-1.5 text-xs font-bold rounded-lg border shadow-sm transition-all duration-200 flex items-center ${
+                                        file.status === 'valid' 
+                                          ? 'bg-green-100 text-green-800 border-green-300 hover:bg-green-200 hover:shadow-md' 
+                                          : file.status === 'invalid' 
+                                            ? 'bg-red-100 text-red-800 border-red-300 hover:bg-red-200 hover:shadow-md' 
+                                            : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100 hover:text-amber-800 hover:border-amber-300'
                                       }`}
                                       title={file.label}
                                     >
+                                      {file.status === 'valid' && <CheckCircle className="w-3.5 h-3.5 mr-1.5" />}
+                                      {file.status === 'invalid' && <XCircle className="w-3.5 h-3.5 mr-1.5" />}
                                       {file.label}
                                     </button>
                                   ))}
@@ -828,9 +948,10 @@ const Dashboard = () => {
               </div>
               <button 
                 onClick={() => setPreviewFile(null)}
-                className="p-2 hover:bg-gray-200 rounded-full transition"
+                className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-all duration-200"
+                title="Tutup Preview"
               >
-                <LogOut className="w-5 h-5" />
+                <X className="w-6 h-6" />
               </button>
             </div>
             

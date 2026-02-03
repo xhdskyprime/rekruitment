@@ -3,6 +3,7 @@ const router = express.Router();
 const multer = require('multer');
 const path = require('path');
 const Applicant = require('../models/Applicant');
+const Position = require('../models/Position');
 
 const driveService = require('../services/driveService');
 
@@ -109,6 +110,16 @@ router.post('/register', (req, res, next) => {
         }
         
         res.status(500).json({ error: 'Terjadi kesalahan saat menyimpan data: ' + error.message });
+    }
+});
+
+// Public: List Positions (for registration form)
+router.get('/positions', async (req, res) => {
+    try {
+        const positions = await Position.findAll({ order: [['name', 'ASC']] });
+        res.json({ positions });
+    } catch (error) {
+        res.status(500).json({ error: 'Server error' });
     }
 });
 
