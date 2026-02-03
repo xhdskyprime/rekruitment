@@ -3,9 +3,9 @@ import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { 
   Users, CheckCircle, XCircle, FileText, 
-  LogOut, Search, Clock, Menu, LayoutDashboard, Shield, User, Printer, ChevronDown, X, ScanBarcode
+  LogOut, Search, Clock, Menu, LayoutDashboard, Shield, User, Printer, ChevronDown, X, QrCode
 } from 'lucide-react';
-import JsBarcode from 'jsbarcode';
+import QRCode from 'qrcode';
 
 interface Applicant {
   id: number;
@@ -316,22 +316,21 @@ const Dashboard = () => {
     app.position.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handlePrintCard = (applicant: Applicant) => {
-    // Generate Barcode
-    const canvas = document.createElement('canvas');
+  const handlePrintCard = async (applicant: Applicant) => {
+    // Generate QR Code
+    let qrCodeDataUrl = '';
     try {
-      JsBarcode(canvas, applicant.id.toString(), {
-        format: "CODE128",
-        displayValue: true,
-        fontSize: 14,
-        height: 40,
-        width: 2,
-        margin: 5
+      qrCodeDataUrl = await QRCode.toDataURL(applicant.id.toString(), {
+        width: 150,
+        margin: 1,
+        color: {
+          dark: '#000000',
+          light: '#ffffff'
+        }
       });
     } catch (e) {
-      console.error("Barcode generation failed", e);
+      console.error("QR Code generation failed", e);
     }
-    const barcodeDataUrl = canvas.toDataURL("image/png");
 
     const printWindow = window.open('', '_blank', 'width=800,height=600');
     if (printWindow) {
@@ -461,9 +460,9 @@ const Dashboard = () => {
                                 <span class="value" style="color:green;font-weight:bold">: TERVERIFIKASI</span>
                             </div>
                             <div class="row" style="border-bottom: none; margin-top: 15px;">
-                                <span class="label">Scan Barcode</span>
+                                <span class="label">Scan QR Code</span>
                                 <div class="value">
-                                    <img src="${barcodeDataUrl}" alt="Barcode" style="display:block; margin-top:-10px;" />
+                                    <img src="${qrCodeDataUrl}" alt="QR Code" style="display:block; margin-top:-10px; width: 100px; height: 100px;" />
                                 </div>
                             </div>
                         </div>
@@ -535,7 +534,7 @@ const Dashboard = () => {
             } ${!isSidebarOpen && 'justify-center'}`}
             title="Absensi Ujian"
           >
-            <ScanBarcode className={`w-5 h-5 flex-shrink-0 ${activeTab === 'attendance' ? 'text-tangerang-purple' : 'text-gray-400 group-hover:text-gray-600'}`} />
+            <QrCode className={`w-5 h-5 flex-shrink-0 ${activeTab === 'attendance' ? 'text-tangerang-purple' : 'text-gray-400 group-hover:text-gray-600'}`} />
             <span className={`ml-3 whitespace-nowrap ${!isSidebarOpen && 'hidden md:hidden'}`}>Absensi Ujian</span>
           </button>
 
@@ -659,10 +658,10 @@ const Dashboard = () => {
                   {/* Scanner Box */}
                   <div className="bg-white p-8 rounded-2xl shadow-lg border border-gray-100 flex flex-col items-center justify-center text-center">
                     <div className="w-16 h-16 bg-purple-100 text-tangerang-purple rounded-full flex items-center justify-center mb-4">
-                      <ScanBarcode className="w-8 h-8" />
+                      <QrCode className="w-8 h-8" />
                     </div>
-                    <h3 className="text-xl font-bold text-gray-800 mb-2">Scan Barcode Peserta</h3>
-                    <p className="text-gray-500 mb-6">Arahkan kursor ke kolom input di bawah dan scan barcode pada kartu ujian peserta.</p>
+                    <h3 className="text-xl font-bold text-gray-800 mb-2">Scan QR Code Peserta</h3>
+                    <p className="text-gray-500 mb-6">Arahkan kursor ke kolom input di bawah dan scan QR Code pada kartu ujian peserta.</p>
                     
                     <form onSubmit={handleScan} className="w-full max-w-md relative">
                       <input
@@ -670,7 +669,7 @@ const Dashboard = () => {
                         type="text"
                         value={scanInput}
                         onChange={(e) => setScanInput(e.target.value)}
-                        placeholder="Klik disini lalu scan barcode..."
+                        placeholder="Klik disini lalu scan QR Code..."
                         className="w-full px-6 py-4 text-center text-xl font-mono tracking-wider border-2 border-purple-200 rounded-xl focus:border-tangerang-purple focus:ring-4 focus:ring-purple-100 outline-none transition-all"
                       />
                       <button 

@@ -206,24 +206,23 @@ router.post('/verify-file/:id', isAuthenticated, async (req, res) => {
                     doc.text(`Tanggal Ujian: ${new Date().toLocaleDateString()}`); 
                     doc.moveDown();
                     
-                    // Generate Barcode
+                    // Generate QR Code
                     try {
-                        const barcodeBuffer = await bwipjs.toBuffer({
-                            bcid:        'code128',       // Barcode type
+                        const qrBuffer = await bwipjs.toBuffer({
+                            bcid:        'qrcode',       // QR Code type
                             text:        applicant.id.toString(),    // Text to encode
                             scale:       3,               // 3x scaling factor
-                            height:      10,              // Bar height, in millimeters
-                            includetext: true,            // Show human-readable text
-                            textxalign:  'center',        // Always good to set this
+                            padding:     1,               // Padding around QR Code
+                            includetext: false,            // QR Code doesn't usually show text
                         });
                         
                         doc.moveDown();
-                        doc.image(barcodeBuffer, {
-                            fit: [200, 100],
+                        doc.image(qrBuffer, {
+                            fit: [100, 100], // QR Code is square
                             align: 'center'
                         });
                     } catch (e) {
-                        console.error("Barcode generation error:", e);
+                        console.error("QR Code generation error:", e);
                     }
 
                     doc.moveDown();
