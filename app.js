@@ -18,6 +18,11 @@ const driveService = require('./services/driveService');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Health Check Endpoint (Critical for Railway/Deployment)
+app.get('/health', (req, res) => {
+    res.status(200).send('OK');
+});
+
 // Trust Proxy (Required for Cloudflare/Railway)
 // This ensures we get the real client IP instead of Cloudflare's IP
 app.set('trust proxy', 1);
@@ -123,8 +128,8 @@ sequelize.sync({ alter: true }).then(async () => {
         console.log('Default admin created: admin / password123 (superadmin)');
     }
 
-    app.listen(PORT, () => {
-        console.log(`Server running on http://localhost:${PORT}`);
+    app.listen(PORT, '0.0.0.0', () => {
+        console.log(`Server running on http://0.0.0.0:${PORT}`);
     });
 }).catch(err => {
     console.error('Database sync error:', err);
