@@ -82,6 +82,7 @@ const Dashboard = () => {
   const [pagination, setPagination] = useState<Pagination>({ totalItems: 0, totalPages: 1, currentPage: 1, limit: 20 });
   const [stats, setStats] = useState<Stats>({ total: 0, pending: 0, verified: 0, rejected: 0, present: 0, absent: 0 });
   const [page, setPage] = useState(1);
+  const [filterStatus, setFilterStatus] = useState<string>('');
   
   const [selectedApplicant, setSelectedApplicant] = useState<Applicant | null>(null);
   const [previewFile, setPreviewFile] = useState<{ type: string, label: string, url: string, status: string, verifiedAt?: string, verifiedBy?: string } | null>(null);
@@ -125,6 +126,7 @@ const Dashboard = () => {
 
   useEffect(() => {
     setPage(1);
+    setFilterStatus('');
   }, [activeTab]);
 
   useEffect(() => {
@@ -132,7 +134,7 @@ const Dashboard = () => {
         if (currentUserRole) fetchApplicants();
     }, 500);
     return () => clearTimeout(timer);
-  }, [page, searchTerm, activeTab, currentUserRole]);
+  }, [page, searchTerm, activeTab, currentUserRole, filterStatus]);
 
   const fetchApplicants = async () => {
     try {
@@ -142,9 +144,11 @@ const Dashboard = () => {
         search: searchTerm
       };
 
-      if (activeTab === 'verification') {
-        params.status = 'pending';
-      } else if (activeTab === 'attendance') {
+      if (filterStatus) {
+        params.status = filterStatus;
+      }
+
+      if (activeTab === 'attendance') {
         params.attendanceStatus = 'present';
       }
 
@@ -1044,17 +1048,31 @@ const Dashboard = () => {
                     </>
                   )}
                 </h2>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Search className="h-4 w-4 text-gray-400" />
+                <div className="relative flex gap-2">
+                  {(activeTab === 'applicants' || activeTab === 'verification') && (
+                    <select
+                      value={filterStatus}
+                      onChange={(e) => setFilterStatus(e.target.value)}
+                      className="pl-3 pr-8 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-tangerang-purple focus:border-transparent outline-none bg-white transition-all"
+                    >
+                      <option value="">Semua Status</option>
+                      <option value="pending">Menunggu</option>
+                      <option value="verified">Lolos</option>
+                      <option value="rejected">Ditolak</option>
+                    </select>
+                  )}
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <Search className="h-4 w-4 text-gray-400" />
+                    </div>
+                    <input
+                      type="text"
+                      placeholder="Cari nama, email..."
+                      className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-tangerang-purple focus:border-transparent outline-none w-full md:w-64 transition-all"
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                    />
                   </div>
-                  <input
-                    type="text"
-                    placeholder="Cari nama, email..."
-                    className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-tangerang-purple focus:border-transparent outline-none w-full md:w-64 transition-all"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                  />
                 </div>
               </div>
 
