@@ -18,6 +18,10 @@ const driveService = require('./services/driveService');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Trust Proxy (Required for Cloudflare/Railway)
+// This ensures we get the real client IP instead of Cloudflare's IP
+app.set('trust proxy', 1);
+
 // Proxy route for Google Drive files
 app.get('/file/proxy/:id', async (req, res) => {
     const fileId = req.params.id;
