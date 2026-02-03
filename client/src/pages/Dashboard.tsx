@@ -957,7 +957,7 @@ const Dashboard = () => {
           <div className="bg-white rounded-2xl w-full max-w-lg h-[90vh] flex flex-col shadow-2xl overflow-hidden">
             <div className="p-4 border-b flex justify-between items-center bg-gray-50">
               <div>
-                <h3 className="text-lg font-bold text-gray-800">Verifikasi Berkas: {previewFile.label}</h3>
+                <h3 className="text-lg font-bold text-gray-800">Verifikasi Berkas: {previewFile.label} <span className="text-xs text-gray-400 font-normal">(v3)</span></h3>
                 <p className="text-sm text-gray-500">Pelamar: {selectedApplicant.name}</p>
               </div>
               <button 
