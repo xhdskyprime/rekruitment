@@ -3,9 +3,10 @@ import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { 
   Users, CheckCircle, XCircle, FileText, 
-  LogOut, Search, Clock, Menu, LayoutDashboard, Shield, User, Printer, ChevronDown, X, QrCode
+  LogOut, Search, Clock, Menu, LayoutDashboard, Shield, User, Printer, ChevronDown, X, QrCode, Camera, CameraOff
 } from 'lucide-react';
 import QRCode from 'qrcode';
+import { Html5QrcodeScanner } from 'html5-qrcode';
 
 interface Applicant {
   id: number;
@@ -70,6 +71,7 @@ const Dashboard = () => {
   // Attendance State
   const [scanInput, setScanInput] = useState('');
   const [lastScanned, setLastScanned] = useState<{name: string, status: 'success' | 'error' | 'warning', message: string} | null>(null);
+  const [showScanner, setShowScanner] = useState(false);
 
   // User Management State
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
@@ -215,12 +217,11 @@ const Dashboard = () => {
     }
   };
 
-  const handleScan = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!scanInput.trim()) return;
+  const processAttendance = async (id: string) => {
+    if (!id.trim()) return;
 
     try {
-      const res = await axios.post('/admin/attendance', { applicantId: scanInput }, { withCredentials: true });
+      const res = await axios.post('/admin/attendance', { applicantId: id }, { withCredentials: true });
       const { applicant, alreadyPresent } = res.data;
       
       setLastScanned({
@@ -235,6 +236,7 @@ const Dashboard = () => {
       ));
       
       setScanInput(''); // Clear input for next scan
+      if (showScanner) setShowScanner(false);
     } catch (error: any) {
       setLastScanned({
         name: 'Unknown',
@@ -242,8 +244,45 @@ const Dashboard = () => {
         message: error.response?.data?.error || 'Gagal memproses data'
       });
       setScanInput('');
+      if (showScanner) setShowScanner(false);
     }
   };
+
+  const handleScan = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await processAttendance(scanInput);
+  };
+
+  useEffect(() => {
+    let scanner: Html5QrcodeScanner | null = null;
+    let timer: ReturnType<typeof setTimeout>;
+
+    if (showScanner && activeTab === 'attendance') {
+        // Short timeout to ensure DOM element exists
+        timer = setTimeout(() => {
+            scanner = new Html5QrcodeScanner(
+                "reader",
+                { fps: 10, qrbox: { width: 250, height: 250 } },
+                /* verbose= */ false
+            );
+            
+            scanner.render((decodedText) => {
+                processAttendance(decodedText);
+                scanner?.clear();
+                setShowScanner(false);
+            }, (_error) => {
+                // ignore
+            });
+        }, 100);
+    }
+
+    return () => {
+        clearTimeout(timer);
+        if (scanner) {
+            scanner.clear().catch(console.error);
+        }
+    };
+  }, [showScanner, activeTab]);
 
   const handleLogout = async () => {
     try {
@@ -661,17 +700,40 @@ const Dashboard = () => {
                       <QrCode className="w-8 h-8" />
                     </div>
                     <h3 className="text-xl font-bold text-gray-800 mb-2">Scan QR Code Peserta</h3>
-                    <p className="text-gray-500 mb-6">Arahkan kursor ke kolom input di bawah dan scan QR Code pada kartu ujian peserta.</p>
+                    <p className="text-gray-500 mb-6">Gunakan scanner manual atau buka kamera untuk scan QR Code pada kartu ujian peserta.</p>
                     
+                    {showScanner ? (
+                      <div className="w-full max-w-md mb-6 animate-in fade-in zoom-in duration-300">
+                        <div id="reader" className="w-full overflow-hidden rounded-xl border-2 border-gray-200"></div>
+                        <button 
+                          onClick={() => setShowScanner(false)}
+                          className="mt-4 flex items-center justify-center gap-2 px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition font-medium w-full"
+                        >
+                          <CameraOff size={20} />
+                          Tutup Kamera
+                        </button>
+                      </div>
+                    ) : (
+                      <button 
+                        onClick={() => setShowScanner(true)}
+                        className="mb-8 flex items-center justify-center gap-2 px-6 py-3 bg-purple-50 border-2 border-purple-100 text-tangerang-purple rounded-xl font-bold hover:bg-purple-100 hover:border-purple-200 transition w-full max-w-md"
+                      >
+                        <Camera size={20} />
+                        Buka Kamera Scanner
+                      </button>
+                    )}
+
                     <form onSubmit={handleScan} className="w-full max-w-md relative">
-                      <input
-                        autoFocus
-                        type="text"
-                        value={scanInput}
-                        onChange={(e) => setScanInput(e.target.value)}
-                        placeholder="Klik disini lalu scan QR Code..."
-                        className="w-full px-6 py-4 text-center text-xl font-mono tracking-wider border-2 border-purple-200 rounded-xl focus:border-tangerang-purple focus:ring-4 focus:ring-purple-100 outline-none transition-all"
-                      />
+                      <div className="relative">
+                        <input
+                          autoFocus
+                          type="text"
+                          value={scanInput}
+                          onChange={(e) => setScanInput(e.target.value)}
+                          placeholder="Atau ketik ID & Enter..."
+                          className="w-full px-6 py-4 text-center text-xl font-mono tracking-wider border-2 border-purple-200 rounded-xl focus:border-tangerang-purple focus:ring-4 focus:ring-purple-100 outline-none transition-all"
+                        />
+                      </div>
                       <button 
                         type="submit" 
                         className="mt-4 w-full py-3 bg-tangerang-purple text-white rounded-xl font-bold hover:bg-tangerang-dark transition shadow-md"
