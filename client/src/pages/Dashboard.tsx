@@ -1244,7 +1244,7 @@ const Dashboard = () => {
       {/* Preview Modal */}
       {previewFile && selectedApplicant && (
         <div className="fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl w-full max-w-lg h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+          <div className="bg-white rounded-2xl w-full max-w-5xl h-[95vh] flex flex-col shadow-2xl overflow-hidden">
             <div className="p-4 border-b flex justify-between items-center bg-gray-50">
               <div>
                 <h3 className="text-lg font-bold text-gray-800">Verifikasi Berkas: {previewFile.label} <span className="text-xs text-gray-400 font-normal">(v3)</span></h3>
