@@ -45,9 +45,21 @@ app.use(cors({
 }));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
+
+// Static Files Optimization (Basic CDN-like behavior)
+// 1. Serve assets (hashed files) with long cache
+app.use('/assets', express.static(path.join(__dirname, 'client/dist/assets'), {
+    maxAge: '1y', // Cache for 1 year
+    immutable: true // Content never changes
+}));
+
+// 2. Serve other static files with normal cache
 app.use(express.static('public'));
+app.use(express.static(path.join(__dirname, 'client/dist'), {
+    maxAge: '1h', // Cache index.html etc for 1 hour
+}));
 // app.use('/uploads', express.static(process.env.UPLOAD_DIR || path.join(__dirname, 'data/uploads')));
-app.use(express.static(path.join(__dirname, 'client/dist')));
+
 app.use(methodOverride('_method'));
 
 // Session Store
