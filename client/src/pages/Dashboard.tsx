@@ -195,6 +195,20 @@ const Dashboard = () => {
     }
   };
 
+  const handleUpdateRole = async (id: number, newRole: string) => {
+    try {
+      await axios.put(`/admin/users/${id}/role`, { role: newRole }, { withCredentials: true });
+      // Update local state without refetching entire list for smoother UX
+      setAdminUsers(prev => prev.map(user => 
+        user.id === id ? { ...user, role: newRole as 'superadmin' | 'verificator' } : user
+      ));
+    } catch (error: any) {
+      alert(error.response?.data?.error || 'Gagal mengubah role');
+      // Revert change by refetching
+      fetchUsers();
+    }
+  };
+
   const handleLogout = async () => {
     try {
       await axios.post('/admin/logout', {}, { withCredentials: true });
