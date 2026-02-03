@@ -3,7 +3,7 @@ import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { 
   Users, CheckCircle, XCircle, FileText, 
-  LogOut, Search, Clock, Menu, LayoutDashboard, Shield, User, Printer, ChevronDown, X
+  LogOut, Search, Clock, Menu, LayoutDashboard, Shield, User, Printer, ChevronDown, X, ScanBarcode
 } from 'lucide-react';
 import JsBarcode from 'jsbarcode';
 
@@ -41,6 +41,8 @@ interface Applicant {
   pasFotoPath?: string;
   examCardPath: string | null;
   createdAt: string;
+  attendanceStatus?: 'absent' | 'present';
+  attendanceTime?: string;
 }
 
 interface AdminUser {
@@ -62,9 +64,13 @@ const Dashboard = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedApplicant, setSelectedApplicant] = useState<Applicant | null>(null);
   const [previewFile, setPreviewFile] = useState<{ type: string, label: string, url: string, status: string, verifiedAt?: string, verifiedBy?: string } | null>(null);
-  const [activeTab, setActiveTab] = useState<'applicants' | 'verification' | 'users'>('applicants');
+  const [activeTab, setActiveTab] = useState<'applicants' | 'verification' | 'users' | 'attendance'>('applicants');
   const [isSidebarOpen, setSidebarOpen] = useState(true);
   
+  // Attendance State
+  const [scanInput, setScanInput] = useState('');
+  const [lastScanned, setLastScanned] = useState<{name: string, status: 'success' | 'error' | 'warning', message: string} | null>(null);
+
   // User Management State
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
   const [currentUsername, setCurrentUsername] = useState<string>('');
@@ -206,6 +212,36 @@ const Dashboard = () => {
       alert(error.response?.data?.error || 'Gagal mengubah role');
       // Revert change by refetching
       fetchUsers();
+    }
+  };
+
+  const handleScan = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!scanInput.trim()) return;
+
+    try {
+      const res = await axios.post('/admin/attendance', { applicantId: scanInput }, { withCredentials: true });
+      const { applicant, alreadyPresent } = res.data;
+      
+      setLastScanned({
+        name: applicant.name,
+        status: alreadyPresent ? 'warning' : 'success',
+        message: res.data.message
+      });
+      
+      // Update local state
+      setApplicants(prev => prev.map(app => 
+        app.id === applicant.id ? { ...app, attendanceStatus: 'present', attendanceTime: new Date().toISOString() } : app
+      ));
+      
+      setScanInput(''); // Clear input for next scan
+    } catch (error: any) {
+      setLastScanned({
+        name: 'Unknown',
+        status: 'error',
+        message: error.response?.data?.error || 'Gagal memproses data'
+      });
+      setScanInput('');
     }
   };
 
@@ -490,6 +526,19 @@ const Dashboard = () => {
             <span className={`ml-3 whitespace-nowrap ${!isSidebarOpen && 'hidden md:hidden'}`}>Verifikasi Berkas</span>
           </button>
 
+          <button
+            onClick={() => setActiveTab('attendance')}
+            className={`w-full flex items-center px-3 py-3 rounded-xl transition-all duration-200 group ${
+              activeTab === 'attendance'
+                ? 'bg-purple-50 text-tangerang-purple font-medium shadow-sm'
+                : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
+            } ${!isSidebarOpen && 'justify-center'}`}
+            title="Absensi Ujian"
+          >
+            <ScanBarcode className={`w-5 h-5 flex-shrink-0 ${activeTab === 'attendance' ? 'text-tangerang-purple' : 'text-gray-400 group-hover:text-gray-600'}`} />
+            <span className={`ml-3 whitespace-nowrap ${!isSidebarOpen && 'hidden md:hidden'}`}>Absensi Ujian</span>
+          </button>
+
           {currentUserRole === 'superadmin' && (
             <button
               onClick={() => setActiveTab('users')}
@@ -525,7 +574,9 @@ const Dashboard = () => {
               <Menu className="w-5 h-5" />
             </button>
             <h2 className="text-xl font-semibold text-gray-800">
-              {activeTab === 'applicants' ? 'Data Pelamar' : activeTab === 'verification' ? 'Verifikasi Berkas' : 'Manajemen User'}
+              {activeTab === 'applicants' ? 'Data Pelamar' : 
+               activeTab === 'verification' ? 'Verifikasi Berkas' : 
+               activeTab === 'attendance' ? 'Absensi Ujian' : 'Manajemen User'}
             </h2>
           </div>
 
@@ -596,6 +647,106 @@ const Dashboard = () => {
                     <p className="text-2xl font-bold text-gray-900">
                       {applicants.filter(a => a.status === 'rejected').length}
                     </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Attendance Section */}
+            {activeTab === 'attendance' && (
+              <div className="space-y-6 animate-in fade-in duration-500">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Scanner Box */}
+                  <div className="bg-white p-8 rounded-2xl shadow-lg border border-gray-100 flex flex-col items-center justify-center text-center">
+                    <div className="w-16 h-16 bg-purple-100 text-tangerang-purple rounded-full flex items-center justify-center mb-4">
+                      <ScanBarcode className="w-8 h-8" />
+                    </div>
+                    <h3 className="text-xl font-bold text-gray-800 mb-2">Scan Barcode Peserta</h3>
+                    <p className="text-gray-500 mb-6">Arahkan kursor ke kolom input di bawah dan scan barcode pada kartu ujian peserta.</p>
+                    
+                    <form onSubmit={handleScan} className="w-full max-w-md relative">
+                      <input
+                        autoFocus
+                        type="text"
+                        value={scanInput}
+                        onChange={(e) => setScanInput(e.target.value)}
+                        placeholder="Klik disini lalu scan barcode..."
+                        className="w-full px-6 py-4 text-center text-xl font-mono tracking-wider border-2 border-purple-200 rounded-xl focus:border-tangerang-purple focus:ring-4 focus:ring-purple-100 outline-none transition-all"
+                      />
+                      <button 
+                        type="submit" 
+                        className="mt-4 w-full py-3 bg-tangerang-purple text-white rounded-xl font-bold hover:bg-tangerang-dark transition shadow-md"
+                      >
+                        Submit Manual
+                      </button>
+                    </form>
+
+                    {lastScanned && (
+                      <div className={`mt-6 p-4 rounded-xl w-full max-w-md animate-in slide-in-from-top-2 duration-300 ${
+                        lastScanned.status === 'success' ? 'bg-green-100 text-green-800 border border-green-200' :
+                        lastScanned.status === 'warning' ? 'bg-yellow-100 text-yellow-800 border border-yellow-200' :
+                        'bg-red-100 text-red-800 border border-red-200'
+                      }`}>
+                        <div className="flex items-center justify-center gap-2 font-bold text-lg mb-1">
+                          {lastScanned.status === 'success' ? <CheckCircle className="w-6 h-6"/> : 
+                           lastScanned.status === 'warning' ? <Clock className="w-6 h-6"/> : <XCircle className="w-6 h-6"/>}
+                          {lastScanned.status === 'success' ? 'Berhasil!' : lastScanned.status === 'warning' ? 'Peringatan' : 'Gagal!'}
+                        </div>
+                        <p className="font-medium text-lg">{lastScanned.name}</p>
+                        <p className="text-sm opacity-90 mt-1">{lastScanned.message}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Summary Stats */}
+                  <div className="space-y-6">
+                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                      <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center">
+                        <Users className="w-5 h-5 mr-2 text-tangerang-purple" />
+                        Statistik Kehadiran
+                      </h3>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="p-4 bg-green-50 rounded-xl border border-green-100">
+                          <p className="text-sm text-green-600 font-medium">Hadir</p>
+                          <p className="text-3xl font-bold text-green-700">
+                            {applicants.filter(a => a.attendanceStatus === 'present').length}
+                          </p>
+                        </div>
+                        <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
+                          <p className="text-sm text-gray-500 font-medium">Belum Hadir</p>
+                          <p className="text-3xl font-bold text-gray-700">
+                            {applicants.filter(a => a.status === 'verified' && a.attendanceStatus !== 'present').length}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex-1 h-[400px] flex flex-col">
+                      <h3 className="text-lg font-bold text-gray-800 mb-4">Riwayat Scan Terbaru</h3>
+                      <div className="overflow-y-auto flex-1 pr-2 space-y-3">
+                        {applicants
+                          .filter(a => a.attendanceStatus === 'present')
+                          .sort((a, b) => new Date(b.attendanceTime!).getTime() - new Date(a.attendanceTime!).getTime())
+                          .slice(0, 10)
+                          .map((app) => (
+                            <div key={app.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100">
+                              <div>
+                                <p className="font-bold text-gray-800">{app.name}</p>
+                                <p className="text-xs text-gray-500">{app.nik}</p>
+                              </div>
+                              <div className="text-right">
+                                <span className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full font-medium">Hadir</span>
+                                <p className="text-xs text-gray-400 mt-1">
+                                  {new Date(app.attendanceTime!).toLocaleTimeString('id-ID')}
+                                </p>
+                              </div>
+                            </div>
+                          ))}
+                          {applicants.filter(a => a.attendanceStatus === 'present').length === 0 && (
+                            <p className="text-center text-gray-400 py-8">Belum ada data kehadiran.</p>
+                          )}
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>

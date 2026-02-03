@@ -3,6 +3,7 @@ const router = express.Router();
 const Applicant = require('../models/Applicant');
 const Admin = require('../models/Admin');
 const PDFDocument = require('pdfkit');
+const bwipjs = require('bwip-js');
 const fs = require('fs');
 const path = require('path');
 const bcrypt = require('bcryptjs');
@@ -96,6 +97,39 @@ router.get('/', isAuthenticated, async (req, res) => {
     }
 });
 
+// Mark Attendance
+router.post('/attendance', isAuthenticated, async (req, res) => {
+    const { applicantId } = req.body;
+    try {
+        const applicant = await Applicant.findByPk(applicantId);
+        if (!applicant) {
+            return res.status(404).json({ error: 'Peserta tidak ditemukan' });
+        }
+        
+        if (applicant.status !== 'verified') {
+            return res.status(400).json({ error: 'Peserta belum lolos verifikasi berkas' });
+        }
+
+        if (applicant.attendanceStatus === 'present') {
+             return res.json({ 
+                success: true, 
+                message: 'Peserta sudah melakukan absensi sebelumnya', 
+                applicant,
+                alreadyPresent: true 
+            });
+        }
+
+        applicant.attendanceStatus = 'present';
+        applicant.attendanceTime = new Date();
+        await applicant.save();
+
+        res.json({ success: true, message: 'Absensi berhasil dicatat', applicant });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
 // Update Verification Status Per File
 router.post('/verify-file/:id', isAuthenticated, async (req, res) => {
     console.log(`[Verify] Request received for ID: ${req.params.id}, Body:`, req.body);
@@ -170,6 +204,28 @@ router.post('/verify-file/:id', isAuthenticated, async (req, res) => {
                     doc.text(`Posisi: ${applicant.position}`);
                     doc.text(`ID Peserta: ${applicant.id}`);
                     doc.text(`Tanggal Ujian: ${new Date().toLocaleDateString()}`); 
+                    doc.moveDown();
+                    
+                    // Generate Barcode
+                    try {
+                        const barcodeBuffer = await bwipjs.toBuffer({
+                            bcid:        'code128',       // Barcode type
+                            text:        applicant.id.toString(),    // Text to encode
+                            scale:       3,               // 3x scaling factor
+                            height:      10,              // Bar height, in millimeters
+                            includetext: true,            // Show human-readable text
+                            textxalign:  'center',        // Always good to set this
+                        });
+                        
+                        doc.moveDown();
+                        doc.image(barcodeBuffer, {
+                            fit: [200, 100],
+                            align: 'center'
+                        });
+                    } catch (e) {
+                        console.error("Barcode generation error:", e);
+                    }
+
                     doc.moveDown();
                     doc.text('Harap bawa kartu ini saat ujian.', { align: 'center' });
                     doc.end();

@@ -96,6 +96,16 @@ const Applicant = sequelize.define('Applicant', {
     examCardPath: {
         type: DataTypes.STRING,
         allowNull: true
+    },
+    
+    // Attendance
+    attendanceStatus: {
+        type: DataTypes.ENUM('absent', 'present'),
+        defaultValue: 'absent'
+    },
+    attendanceTime: {
+        type: DataTypes.DATE,
+        allowNull: true
     }
 });
 
