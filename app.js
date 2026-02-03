@@ -4,6 +4,7 @@ const path = require('path');
 const sequelize = require('./models/database');
 const Applicant = require('./models/Applicant');
 const Admin = require('./models/Admin');
+const Position = require('./models/Position');
 const methodOverride = require('method-override');
 const session = require('express-session');
 const SequelizeStore = require('connect-session-sequelize')(session.Store);

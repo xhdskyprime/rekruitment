@@ -6,6 +6,7 @@ const PDFDocument = require('pdfkit');
 const fs = require('fs');
 const path = require('path');
 const bcrypt = require('bcryptjs');
+const Position = require('../models/Position');
 
 // Authentication Middleware
 const isAuthenticated = (req, res, next) => {
@@ -234,6 +235,43 @@ router.delete('/applicant/:id', isAuthenticated, async (req, res) => {
     }
 });
 
+// Master Positions (Superadmin Only)
+router.get('/positions', isAuthenticated, async (req, res) => {
+    try {
+        const positions = await Position.findAll({ order: [['createdAt', 'DESC']] });
+        res.json({ positions });
+    } catch (error) {
+        res.status(500).json({ error: 'Server Error' });
+    }
+});
+
+router.post('/positions', isSuperAdmin, async (req, res) => {
+    try {
+        const { name } = req.body;
+        if (!name || !name.trim()) {
+            return res.status(400).json({ error: 'Nama posisi wajib diisi' });
+        }
+        const pos = await Position.create({ name: name.trim() });
+        res.status(201).json({ success: true, position: pos });
+    } catch (error) {
+        if (error.name === 'SequelizeUniqueConstraintError') {
+            return res.status(400).json({ error: 'Posisi sudah ada' });
+        }
+        res.status(500).json({ error: 'Server Error' });
+    }
+});
+
+router.delete('/positions/:id', isSuperAdmin, async (req, res) => {
+    try {
+        const pos = await Position.findByPk(req.params.id);
+        if (!pos) return res.status(404).json({ error: 'Posisi tidak ditemukan' });
+        await pos.destroy();
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: 'Server Error' });
+    }
+});
+
 // User Management Routes (Superadmin Only)
 router.get('/users', isSuperAdmin, async (req, res) => {
     try {
@@ -284,6 +322,34 @@ router.delete('/users/:id', isSuperAdmin, async (req, res) => {
         await admin.destroy();
         res.json({ success: true, message: 'User deleted' });
     } catch (error) {
+        res.status(500).json({ error: 'Server Error' });
+    }
+});
+
+// Update User Role (Superadmin Only)
+router.put('/users/:id/role', isSuperAdmin, async (req, res) => {
+    const { role } = req.body;
+    try {
+        if (!['superadmin', 'verificator'].includes(role)) {
+            return res.status(400).json({ error: 'Invalid role' });
+        }
+
+        // Prevent updating self role to avoid locking yourself out (optional but good practice)
+        if (parseInt(req.params.id) === req.session.adminId) {
+             return res.status(400).json({ error: 'Cannot change your own role' });
+        }
+
+        const admin = await Admin.findByPk(req.params.id);
+        if (!admin) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        admin.role = role;
+        await admin.save();
+
+        res.json({ success: true, message: 'Role updated', admin: { id: admin.id, username: admin.username, role: admin.role } });
+    } catch (error) {
+        console.error('Update role error:', error);
         res.status(500).json({ error: 'Server Error' });
     }
 });

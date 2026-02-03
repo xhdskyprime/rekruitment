@@ -8,6 +8,8 @@ export default defineConfig({
     proxy: {
       '/register': 'http://localhost:3000',
       '/status': 'http://localhost:3000',
+      '/api': 'http://localhost:3000',
+      '/positions': 'http://localhost:3000',
       '/admin': 'http://localhost:3000',
       '/uploads': 'http://localhost:3000'
     }
