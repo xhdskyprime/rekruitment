@@ -107,6 +107,14 @@ const Applicant = sequelize.define('Applicant', {
         type: DataTypes.DATE,
         allowNull: true
     }
+}, {
+    indexes: [
+        { fields: ['status'] },
+        { fields: ['nik'] },
+        { fields: ['name'] },
+        { fields: ['attendanceStatus'] },
+        { fields: ['createdAt'] }
+    ]
 });
 
 module.exports = Applicant;

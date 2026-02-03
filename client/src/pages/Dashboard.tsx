@@ -59,10 +59,30 @@ interface PositionItem {
   createdAt: string;
 }
 
+interface Pagination {
+  totalItems: number;
+  totalPages: number;
+  currentPage: number;
+  limit: number;
+}
+
+interface Stats {
+  total: number;
+  pending: number;
+  verified: number;
+  rejected: number;
+  present: number;
+  absent: number;
+}
+
 const Dashboard = () => {
   const [applicants, setApplicants] = useState<Applicant[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [pagination, setPagination] = useState<Pagination>({ totalItems: 0, totalPages: 1, currentPage: 1, limit: 20 });
+  const [stats, setStats] = useState<Stats>({ total: 0, pending: 0, verified: 0, rejected: 0, present: 0, absent: 0 });
+  const [page, setPage] = useState(1);
+  
   const [selectedApplicant, setSelectedApplicant] = useState<Applicant | null>(null);
   const [previewFile, setPreviewFile] = useState<{ type: string, label: string, url: string, status: string, verifiedAt?: string, verifiedBy?: string } | null>(null);
   const [activeTab, setActiveTab] = useState<'applicants' | 'verification' | 'users' | 'attendance'>('applicants');
@@ -103,10 +123,35 @@ const Dashboard = () => {
     checkAuthAndFetch();
   }, []);
 
+  useEffect(() => {
+    setPage(1);
+  }, [activeTab]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+        if (currentUserRole) fetchApplicants();
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [page, searchTerm, activeTab, currentUserRole]);
+
   const fetchApplicants = async () => {
     try {
-      const response = await axios.get('/admin', { withCredentials: true });
+      const params: any = {
+        page,
+        limit: 20,
+        search: searchTerm
+      };
+
+      if (activeTab === 'verification') {
+        params.status = 'pending';
+      } else if (activeTab === 'attendance') {
+        params.attendanceStatus = 'present';
+      }
+
+      const response = await axios.get('/admin', { params, withCredentials: true });
       setApplicants(response.data.applicants);
+      setPagination(response.data.pagination);
+      setStats(response.data.stats);
     } catch (error) {
       console.error('Failed to fetch applicants', error);
     }
@@ -123,8 +168,7 @@ const Dashboard = () => {
       setCurrentUserRole(authRes.data.role);
       setCurrentUsername(authRes.data.username || 'Admin');
 
-      // Fetch applicants
-      await fetchApplicants();
+      // Fetch applicants is handled by useEffect now
 
       // If superadmin, fetch users
       if (authRes.data.role === 'superadmin') {
@@ -348,12 +392,6 @@ const Dashboard = () => {
       alert(msg);
     }
   };
-
-  const filteredApplicants = applicants.filter(app => 
-    app.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    app.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    app.position.toLowerCase().includes(searchTerm.toLowerCase())
-  );
 
   const handlePrintCard = async (applicant: Applicant) => {
     // Generate QR Code
@@ -651,7 +689,7 @@ const Dashboard = () => {
                   </div>
                   <div>
                     <p className="text-sm text-gray-500 font-medium">Total Pelamar</p>
-                    <p className="text-2xl font-bold text-gray-900">{applicants.length}</p>
+                    <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
                   </div>
                 </div>
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center hover:shadow-md transition-shadow">
@@ -661,7 +699,7 @@ const Dashboard = () => {
                   <div>
                     <p className="text-sm text-gray-500 font-medium">Menunggu</p>
                     <p className="text-2xl font-bold text-gray-900">
-                      {applicants.filter(a => a.status === 'pending').length}
+                      {stats.pending}
                     </p>
                   </div>
                 </div>
@@ -672,7 +710,7 @@ const Dashboard = () => {
                   <div>
                     <p className="text-sm text-gray-500 font-medium">Lolos</p>
                     <p className="text-2xl font-bold text-gray-900">
-                      {applicants.filter(a => a.status === 'verified').length}
+                      {stats.verified}
                     </p>
                   </div>
                 </div>
@@ -683,7 +721,7 @@ const Dashboard = () => {
                   <div>
                     <p className="text-sm text-gray-500 font-medium">Ditolak</p>
                     <p className="text-2xl font-bold text-gray-900">
-                      {applicants.filter(a => a.status === 'rejected').length}
+                      {stats.rejected}
                     </p>
                   </div>
                 </div>
@@ -770,13 +808,13 @@ const Dashboard = () => {
                         <div className="p-4 bg-green-50 rounded-xl border border-green-100">
                           <p className="text-sm text-green-600 font-medium">Hadir</p>
                           <p className="text-3xl font-bold text-green-700">
-                            {applicants.filter(a => a.attendanceStatus === 'present').length}
+                            {stats.present}
                           </p>
                         </div>
                         <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
                           <p className="text-sm text-gray-500 font-medium">Belum Hadir</p>
                           <p className="text-3xl font-bold text-gray-700">
-                            {applicants.filter(a => a.status === 'verified' && a.attendanceStatus !== 'present').length}
+                            {stats.absent}
                           </p>
                         </div>
                       </div>
@@ -1050,10 +1088,10 @@ const Dashboard = () => {
                   <tbody className="divide-y divide-gray-100">
                     {loading ? (
                       <tr><td colSpan={6} className="px-6 py-8 text-center text-gray-500">Loading data...</td></tr>
-                    ) : filteredApplicants.length === 0 ? (
+                    ) : applicants.length === 0 ? (
                       <tr><td colSpan={6} className="px-6 py-8 text-center text-gray-500">Tidak ada data pelamar.</td></tr>
                     ) : (
-                      filteredApplicants.map((app) => (
+                      applicants.map((app) => (
                         <tr key={app.id} className="hover:bg-gray-50 transition">
                           {activeTab === 'applicants' ? (
                             <>
@@ -1156,6 +1194,28 @@ const Dashboard = () => {
                     )}
                   </tbody>
                 </table>
+              </div>
+
+              <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between">
+                <div className="text-sm text-gray-500">
+                  Hal {pagination.currentPage} dari {pagination.totalPages} ({pagination.totalItems} data)
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setPage(prev => Math.max(prev - 1, 1))}
+                    disabled={pagination.currentPage === 1}
+                    className="px-3 py-1 border border-gray-300 rounded-lg text-sm disabled:opacity-50 hover:bg-gray-50"
+                  >
+                    Sebelumnya
+                  </button>
+                  <button
+                    onClick={() => setPage(prev => Math.min(prev + 1, pagination.totalPages))}
+                    disabled={pagination.currentPage === pagination.totalPages}
+                    className="px-3 py-1 border border-gray-300 rounded-lg text-sm disabled:opacity-50 hover:bg-gray-50"
+                  >
+                    Selanjutnya
+                  </button>
+                </div>
               </div>
             </div>
             )}

@@ -8,6 +8,7 @@ const fs = require('fs');
 const path = require('path');
 const bcrypt = require('bcryptjs');
 const Position = require('../models/Position');
+const { Op } = require('sequelize');
 
 // Authentication Middleware
 const isAuthenticated = (req, res, next) => {
@@ -89,8 +90,57 @@ router.post('/logout', (req, res) => {
 // Admin Dashboard - List Applicants (Protected)
 router.get('/', isAuthenticated, async (req, res) => {
     try {
-        const applicants = await Applicant.findAll({ order: [['createdAt', 'DESC']] });
-        res.json({ applicants });
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 20; // Default 20 per page
+        const search = req.query.search || '';
+        const offset = (page - 1) * limit;
+
+        const where = {};
+        if (search) {
+            where[Op.or] = [
+                { name: { [Op.like]: `%${search}%` } },
+                { email: { [Op.like]: `%${search}%` } },
+                { position: { [Op.like]: `%${search}%` } },
+                { nik: { [Op.like]: `%${search}%` } }
+            ];
+        }
+
+        if (req.query.status) {
+            where.status = req.query.status;
+        }
+
+        if (req.query.attendanceStatus) {
+            where.attendanceStatus = req.query.attendanceStatus;
+        }
+
+        // Fetch paginated data
+        const { count, rows } = await Applicant.findAndCountAll({
+            where,
+            limit,
+            offset,
+            order: [['createdAt', 'DESC']]
+        });
+
+        // Fetch global stats (efficient counts)
+        const stats = {
+            total: await Applicant.count(),
+            pending: await Applicant.count({ where: { status: 'pending' } }),
+            verified: await Applicant.count({ where: { status: 'verified' } }),
+            rejected: await Applicant.count({ where: { status: 'rejected' } }),
+            present: await Applicant.count({ where: { attendanceStatus: 'present' } }),
+            absent: await Applicant.count({ where: { status: 'verified', attendanceStatus: { [Op.ne]: 'present' } } })
+        };
+
+        res.json({ 
+            applicants: rows,
+            pagination: {
+                totalItems: count,
+                totalPages: Math.ceil(count / limit),
+                currentPage: page,
+                limit
+            },
+            stats
+        });
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: 'Server Error' });
