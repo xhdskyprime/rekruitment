@@ -18,6 +18,15 @@ const driveService = require('./services/driveService');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Health Check Endpoint (Critical for Railway/Deployment)
+app.get('/health', (req, res) => {
+    res.status(200).send('OK');
+});
+
+// Trust Proxy (Required for Cloudflare/Railway)
+// This ensures we get the real client IP instead of Cloudflare's IP
+app.set('trust proxy', 1);
+
 // Proxy route for Google Drive files
 app.get('/file/proxy/:id', async (req, res) => {
     const fileId = req.params.id;
@@ -45,9 +54,21 @@ app.use(cors({
 }));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
+
+// Static Files Optimization (Basic CDN-like behavior)
+// 1. Serve assets (hashed files) with long cache
+app.use('/assets', express.static(path.join(__dirname, 'client/dist/assets'), {
+    maxAge: '1y', // Cache for 1 year
+    immutable: true // Content never changes
+}));
+
+// 2. Serve other static files with normal cache
 app.use(express.static('public'));
+app.use(express.static(path.join(__dirname, 'client/dist'), {
+    maxAge: '1h', // Cache index.html etc for 1 hour
+}));
 // app.use('/uploads', express.static(process.env.UPLOAD_DIR || path.join(__dirname, 'data/uploads')));
-app.use(express.static(path.join(__dirname, 'client/dist')));
+
 app.use(methodOverride('_method'));
 
 // Session Store
@@ -107,8 +128,8 @@ sequelize.sync({ alter: true }).then(async () => {
         console.log('Default admin created: admin / password123 (superadmin)');
     }
 
-    app.listen(PORT, () => {
-        console.log(`Server running on http://localhost:${PORT}`);
+    app.listen(PORT, '0.0.0.0', () => {
+        console.log(`Server running on http://0.0.0.0:${PORT}`);
     });
 }).catch(err => {
     console.error('Database sync error:', err);

@@ -3,9 +3,10 @@ import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { 
   Users, CheckCircle, XCircle, FileText, 
-  LogOut, Search, Clock, Menu, LayoutDashboard, Shield, User, Printer, ChevronDown, X
+  LogOut, Search, Clock, Menu, LayoutDashboard, Shield, User, Printer, ChevronDown, X, QrCode, Camera, CameraOff
 } from 'lucide-react';
-import JsBarcode from 'jsbarcode';
+import QRCode from 'qrcode';
+import { Html5QrcodeScanner } from 'html5-qrcode';
 
 interface Applicant {
   id: number;
@@ -41,6 +42,8 @@ interface Applicant {
   pasFotoPath?: string;
   examCardPath: string | null;
   createdAt: string;
+  attendanceStatus?: 'absent' | 'present';
+  attendanceTime?: string;
 }
 
 interface AdminUser {
@@ -56,15 +59,42 @@ interface PositionItem {
   createdAt: string;
 }
 
+interface Pagination {
+  totalItems: number;
+  totalPages: number;
+  currentPage: number;
+  limit: number;
+}
+
+interface Stats {
+  total: number;
+  pending: number;
+  verified: number;
+  rejected: number;
+  present: number;
+  absent: number;
+}
+
 const Dashboard = () => {
   const [applicants, setApplicants] = useState<Applicant[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [pagination, setPagination] = useState<Pagination>({ totalItems: 0, totalPages: 1, currentPage: 1, limit: 20 });
+  const [stats, setStats] = useState<Stats>({ total: 0, pending: 0, verified: 0, rejected: 0, present: 0, absent: 0 });
+  const [page, setPage] = useState(1);
+  const [filterStatus, setFilterStatus] = useState<string>('');
+  
   const [selectedApplicant, setSelectedApplicant] = useState<Applicant | null>(null);
   const [previewFile, setPreviewFile] = useState<{ type: string, label: string, url: string, status: string, verifiedAt?: string, verifiedBy?: string } | null>(null);
-  const [activeTab, setActiveTab] = useState<'applicants' | 'verification' | 'users'>('applicants');
+  const [activeTab, setActiveTab] = useState<'applicants' | 'verification' | 'users' | 'attendance'>('applicants');
   const [isSidebarOpen, setSidebarOpen] = useState(true);
   
+  // Attendance State
+  const [scanInput, setScanInput] = useState('');
+  const [lastScanned, setLastScanned] = useState<{name: string, status: 'success' | 'error' | 'warning', message: string} | null>(null);
+  const [showScanner, setShowScanner] = useState(false);
+
   // User Management State
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
   const [currentUsername, setCurrentUsername] = useState<string>('');
@@ -95,10 +125,44 @@ const Dashboard = () => {
     checkAuthAndFetch();
   }, []);
 
+  useEffect(() => {
+    setPage(1);
+    setFilterStatus('');
+  }, [activeTab]);
+
+  // Debounce search term
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  // Fetch data when dependencies change (immediate)
+  useEffect(() => {
+    if (currentUserRole) fetchApplicants();
+  }, [page, debouncedSearch, activeTab, currentUserRole, filterStatus]);
+
   const fetchApplicants = async () => {
     try {
-      const response = await axios.get('/admin', { withCredentials: true });
+      const params: any = {
+        page,
+        limit: 20,
+        search: searchTerm
+      };
+
+      if (filterStatus) {
+        params.status = filterStatus;
+      }
+
+      if (activeTab === 'attendance') {
+        params.attendanceStatus = 'present';
+      }
+
+      const response = await axios.get('/admin', { params, withCredentials: true });
       setApplicants(response.data.applicants);
+      setPagination(response.data.pagination);
+      setStats(response.data.stats);
     } catch (error) {
       console.error('Failed to fetch applicants', error);
     }
@@ -115,8 +179,7 @@ const Dashboard = () => {
       setCurrentUserRole(authRes.data.role);
       setCurrentUsername(authRes.data.username || 'Admin');
 
-      // Fetch applicants
-      await fetchApplicants();
+      // Fetch applicants is handled by useEffect now
 
       // If superadmin, fetch users
       if (authRes.data.role === 'superadmin') {
@@ -204,6 +267,87 @@ const Dashboard = () => {
     }
   };
 
+  const handleUpdateRole = async (id: number, newRole: string) => {
+    try {
+      await axios.put(`/admin/users/${id}/role`, { role: newRole }, { withCredentials: true });
+      // Update local state without refetching entire list for smoother UX
+      setAdminUsers(prev => prev.map(user => 
+        user.id === id ? { ...user, role: newRole as 'superadmin' | 'verificator' } : user
+      ));
+    } catch (error: any) {
+      alert(error.response?.data?.error || 'Gagal mengubah role');
+      // Revert change by refetching
+      fetchUsers();
+    }
+  };
+
+  const processAttendance = async (id: string) => {
+    if (!id.trim()) return;
+
+    try {
+      const res = await axios.post('/admin/attendance', { applicantId: id }, { withCredentials: true });
+      const { applicant, alreadyPresent } = res.data;
+      
+      setLastScanned({
+        name: applicant.name,
+        status: alreadyPresent ? 'warning' : 'success',
+        message: res.data.message
+      });
+      
+      // Update local state
+      setApplicants(prev => prev.map(app => 
+        app.id === applicant.id ? { ...app, attendanceStatus: 'present', attendanceTime: new Date().toISOString() } : app
+      ));
+      
+      setScanInput(''); // Clear input for next scan
+      if (showScanner) setShowScanner(false);
+    } catch (error: any) {
+      setLastScanned({
+        name: 'Unknown',
+        status: 'error',
+        message: error.response?.data?.error || 'Gagal memproses data'
+      });
+      setScanInput('');
+      if (showScanner) setShowScanner(false);
+    }
+  };
+
+  const handleScan = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await processAttendance(scanInput);
+  };
+
+  useEffect(() => {
+    let scanner: Html5QrcodeScanner | null = null;
+    let timer: ReturnType<typeof setTimeout>;
+
+    if (showScanner && activeTab === 'attendance') {
+        // Short timeout to ensure DOM element exists
+        timer = setTimeout(() => {
+            scanner = new Html5QrcodeScanner(
+                "reader",
+                { fps: 10, qrbox: { width: 250, height: 250 } },
+                /* verbose= */ false
+            );
+            
+            scanner.render((decodedText) => {
+                processAttendance(decodedText);
+                scanner?.clear();
+                setShowScanner(false);
+            }, (_error) => {
+                // ignore
+            });
+        }, 100);
+    }
+
+    return () => {
+        clearTimeout(timer);
+        if (scanner) {
+            scanner.clear().catch(console.error);
+        }
+    };
+  }, [showScanner, activeTab]);
+
   const handleLogout = async () => {
     try {
       await axios.post('/admin/logout', {}, { withCredentials: true });
@@ -269,28 +413,21 @@ const Dashboard = () => {
     }
   };
 
-  const filteredApplicants = applicants.filter(app => 
-    app.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    app.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    app.position.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const handlePrintCard = (applicant: Applicant) => {
-    // Generate Barcode
-    const canvas = document.createElement('canvas');
+  const handlePrintCard = async (applicant: Applicant) => {
+    // Generate QR Code
+    let qrCodeDataUrl = '';
     try {
-      JsBarcode(canvas, applicant.id.toString(), {
-        format: "CODE128",
-        displayValue: true,
-        fontSize: 14,
-        height: 40,
-        width: 2,
-        margin: 5
+      qrCodeDataUrl = await QRCode.toDataURL(applicant.id.toString(), {
+        width: 150,
+        margin: 1,
+        color: {
+          dark: '#000000',
+          light: '#ffffff'
+        }
       });
     } catch (e) {
-      console.error("Barcode generation failed", e);
+      console.error("QR Code generation failed", e);
     }
-    const barcodeDataUrl = canvas.toDataURL("image/png");
 
     const printWindow = window.open('', '_blank', 'width=800,height=600');
     if (printWindow) {
@@ -420,9 +557,9 @@ const Dashboard = () => {
                                 <span class="value" style="color:green;font-weight:bold">: TERVERIFIKASI</span>
                             </div>
                             <div class="row" style="border-bottom: none; margin-top: 15px;">
-                                <span class="label">Scan Barcode</span>
+                                <span class="label">Scan QR Code</span>
                                 <div class="value">
-                                    <img src="${barcodeDataUrl}" alt="Barcode" style="display:block; margin-top:-10px;" />
+                                    <img src="${qrCodeDataUrl}" alt="QR Code" style="display:block; margin-top:-10px; width: 100px; height: 100px;" />
                                 </div>
                             </div>
                         </div>
@@ -485,6 +622,19 @@ const Dashboard = () => {
             <span className={`ml-3 whitespace-nowrap ${!isSidebarOpen && 'hidden md:hidden'}`}>Verifikasi Berkas</span>
           </button>
 
+          <button
+            onClick={() => setActiveTab('attendance')}
+            className={`w-full flex items-center px-3 py-3 rounded-xl transition-all duration-200 group ${
+              activeTab === 'attendance'
+                ? 'bg-purple-50 text-tangerang-purple font-medium shadow-sm'
+                : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
+            } ${!isSidebarOpen && 'justify-center'}`}
+            title="Absensi Ujian"
+          >
+            <QrCode className={`w-5 h-5 flex-shrink-0 ${activeTab === 'attendance' ? 'text-tangerang-purple' : 'text-gray-400 group-hover:text-gray-600'}`} />
+            <span className={`ml-3 whitespace-nowrap ${!isSidebarOpen && 'hidden md:hidden'}`}>Absensi Ujian</span>
+          </button>
+
           {currentUserRole === 'superadmin' && (
             <button
               onClick={() => setActiveTab('users')}
@@ -520,7 +670,9 @@ const Dashboard = () => {
               <Menu className="w-5 h-5" />
             </button>
             <h2 className="text-xl font-semibold text-gray-800">
-              {activeTab === 'applicants' ? 'Data Pelamar' : activeTab === 'verification' ? 'Verifikasi Berkas' : 'Manajemen User'}
+              {activeTab === 'applicants' ? 'Data Pelamar' : 
+               activeTab === 'verification' ? 'Verifikasi Berkas' : 
+               activeTab === 'attendance' ? 'Absensi Ujian' : 'Manajemen User'}
             </h2>
           </div>
 
@@ -557,7 +709,7 @@ const Dashboard = () => {
                   </div>
                   <div>
                     <p className="text-sm text-gray-500 font-medium">Total Pelamar</p>
-                    <p className="text-2xl font-bold text-gray-900">{applicants.length}</p>
+                    <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
                   </div>
                 </div>
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center hover:shadow-md transition-shadow">
@@ -567,7 +719,7 @@ const Dashboard = () => {
                   <div>
                     <p className="text-sm text-gray-500 font-medium">Menunggu</p>
                     <p className="text-2xl font-bold text-gray-900">
-                      {applicants.filter(a => a.status === 'pending').length}
+                      {stats.pending}
                     </p>
                   </div>
                 </div>
@@ -578,7 +730,7 @@ const Dashboard = () => {
                   <div>
                     <p className="text-sm text-gray-500 font-medium">Lolos</p>
                     <p className="text-2xl font-bold text-gray-900">
-                      {applicants.filter(a => a.status === 'verified').length}
+                      {stats.verified}
                     </p>
                   </div>
                 </div>
@@ -589,8 +741,131 @@ const Dashboard = () => {
                   <div>
                     <p className="text-sm text-gray-500 font-medium">Ditolak</p>
                     <p className="text-2xl font-bold text-gray-900">
-                      {applicants.filter(a => a.status === 'rejected').length}
+                      {stats.rejected}
                     </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Attendance Section */}
+            {activeTab === 'attendance' && (
+              <div className="space-y-6 animate-in fade-in duration-500">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Scanner Box */}
+                  <div className="bg-white p-8 rounded-2xl shadow-lg border border-gray-100 flex flex-col items-center justify-center text-center">
+                    <div className="w-16 h-16 bg-purple-100 text-tangerang-purple rounded-full flex items-center justify-center mb-4">
+                      <QrCode className="w-8 h-8" />
+                    </div>
+                    <h3 className="text-xl font-bold text-gray-800 mb-2">Scan QR Code Peserta</h3>
+                    <p className="text-gray-500 mb-6">Gunakan scanner manual atau buka kamera untuk scan QR Code pada kartu ujian peserta.</p>
+                    
+                    {showScanner ? (
+                      <div className="w-full max-w-md mb-6 animate-in fade-in zoom-in duration-300">
+                        <div id="reader" className="w-full overflow-hidden rounded-xl border-2 border-gray-200"></div>
+                        <button 
+                          onClick={() => setShowScanner(false)}
+                          className="mt-4 flex items-center justify-center gap-2 px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition font-medium w-full"
+                        >
+                          <CameraOff size={20} />
+                          Tutup Kamera
+                        </button>
+                      </div>
+                    ) : (
+                      <button 
+                        onClick={() => setShowScanner(true)}
+                        className="mb-8 flex items-center justify-center gap-2 px-6 py-3 bg-purple-50 border-2 border-purple-100 text-tangerang-purple rounded-xl font-bold hover:bg-purple-100 hover:border-purple-200 transition w-full max-w-md"
+                      >
+                        <Camera size={20} />
+                        Buka Kamera Scanner
+                      </button>
+                    )}
+
+                    <form onSubmit={handleScan} className="w-full max-w-md relative">
+                      <div className="relative">
+                        <input
+                          autoFocus
+                          type="text"
+                          value={scanInput}
+                          onChange={(e) => setScanInput(e.target.value)}
+                          placeholder="Atau ketik ID & Enter..."
+                          className="w-full px-6 py-4 text-center text-xl font-mono tracking-wider border-2 border-purple-200 rounded-xl focus:border-tangerang-purple focus:ring-4 focus:ring-purple-100 outline-none transition-all"
+                        />
+                      </div>
+                      <button 
+                        type="submit" 
+                        className="mt-4 w-full py-3 bg-tangerang-purple text-white rounded-xl font-bold hover:bg-tangerang-dark transition shadow-md"
+                      >
+                        Submit Manual
+                      </button>
+                    </form>
+
+                    {lastScanned && (
+                      <div className={`mt-6 p-4 rounded-xl w-full max-w-md animate-in slide-in-from-top-2 duration-300 ${
+                        lastScanned.status === 'success' ? 'bg-green-100 text-green-800 border border-green-200' :
+                        lastScanned.status === 'warning' ? 'bg-yellow-100 text-yellow-800 border border-yellow-200' :
+                        'bg-red-100 text-red-800 border border-red-200'
+                      }`}>
+                        <div className="flex items-center justify-center gap-2 font-bold text-lg mb-1">
+                          {lastScanned.status === 'success' ? <CheckCircle className="w-6 h-6"/> : 
+                           lastScanned.status === 'warning' ? <Clock className="w-6 h-6"/> : <XCircle className="w-6 h-6"/>}
+                          {lastScanned.status === 'success' ? 'Berhasil!' : lastScanned.status === 'warning' ? 'Peringatan' : 'Gagal!'}
+                        </div>
+                        <p className="font-medium text-lg">{lastScanned.name}</p>
+                        <p className="text-sm opacity-90 mt-1">{lastScanned.message}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Summary Stats */}
+                  <div className="space-y-6">
+                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                      <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center">
+                        <Users className="w-5 h-5 mr-2 text-tangerang-purple" />
+                        Statistik Kehadiran
+                      </h3>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="p-4 bg-green-50 rounded-xl border border-green-100">
+                          <p className="text-sm text-green-600 font-medium">Hadir</p>
+                          <p className="text-3xl font-bold text-green-700">
+                            {stats.present}
+                          </p>
+                        </div>
+                        <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
+                          <p className="text-sm text-gray-500 font-medium">Belum Hadir</p>
+                          <p className="text-3xl font-bold text-gray-700">
+                            {stats.absent}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex-1 h-[400px] flex flex-col">
+                      <h3 className="text-lg font-bold text-gray-800 mb-4">Riwayat Scan Terbaru</h3>
+                      <div className="overflow-y-auto flex-1 pr-2 space-y-3">
+                        {applicants
+                          .filter(a => a.attendanceStatus === 'present')
+                          .sort((a, b) => new Date(b.attendanceTime!).getTime() - new Date(a.attendanceTime!).getTime())
+                          .slice(0, 10)
+                          .map((app) => (
+                            <div key={app.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100">
+                              <div>
+                                <p className="font-bold text-gray-800">{app.name}</p>
+                                <p className="text-xs text-gray-500">{app.nik}</p>
+                              </div>
+                              <div className="text-right">
+                                <span className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full font-medium">Hadir</span>
+                                <p className="text-xs text-gray-400 mt-1">
+                                  {new Date(app.attendanceTime!).toLocaleTimeString('id-ID')}
+                                </p>
+                              </div>
+                            </div>
+                          ))}
+                          {applicants.filter(a => a.attendanceStatus === 'present').length === 0 && (
+                            <p className="text-center text-gray-400 py-8">Belum ada data kehadiran.</p>
+                          )}
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -789,17 +1064,31 @@ const Dashboard = () => {
                     </>
                   )}
                 </h2>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Search className="h-4 w-4 text-gray-400" />
+                <div className="relative flex gap-2">
+                  {(activeTab === 'applicants' || activeTab === 'verification') && (
+                    <select
+                      value={filterStatus}
+                      onChange={(e) => setFilterStatus(e.target.value)}
+                      className="pl-3 pr-8 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-tangerang-purple focus:border-transparent outline-none bg-white transition-all"
+                    >
+                      <option value="">Semua Status</option>
+                      <option value="pending">Menunggu</option>
+                      <option value="verified">Lolos</option>
+                      <option value="rejected">Ditolak</option>
+                    </select>
+                  )}
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <Search className="h-4 w-4 text-gray-400" />
+                    </div>
+                    <input
+                      type="text"
+                      placeholder="Cari nama, email..."
+                      className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-tangerang-purple focus:border-transparent outline-none w-full md:w-64 transition-all"
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                    />
                   </div>
-                  <input
-                    type="text"
-                    placeholder="Cari nama, email..."
-                    className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-tangerang-purple focus:border-transparent outline-none w-full md:w-64 transition-all"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                  />
                 </div>
               </div>
 
@@ -833,10 +1122,10 @@ const Dashboard = () => {
                   <tbody className="divide-y divide-gray-100">
                     {loading ? (
                       <tr><td colSpan={6} className="px-6 py-8 text-center text-gray-500">Loading data...</td></tr>
-                    ) : filteredApplicants.length === 0 ? (
+                    ) : applicants.length === 0 ? (
                       <tr><td colSpan={6} className="px-6 py-8 text-center text-gray-500">Tidak ada data pelamar.</td></tr>
                     ) : (
-                      filteredApplicants.map((app) => (
+                      applicants.map((app) => (
                         <tr key={app.id} className="hover:bg-gray-50 transition">
                           {activeTab === 'applicants' ? (
                             <>
@@ -940,6 +1229,28 @@ const Dashboard = () => {
                   </tbody>
                 </table>
               </div>
+
+              <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between">
+                <div className="text-sm text-gray-500">
+                  Hal {pagination.currentPage} dari {pagination.totalPages} ({pagination.totalItems} data)
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setPage(prev => Math.max(prev - 1, 1))}
+                    disabled={pagination.currentPage === 1}
+                    className="px-3 py-1 border border-gray-300 rounded-lg text-sm disabled:opacity-50 hover:bg-gray-50"
+                  >
+                    Sebelumnya
+                  </button>
+                  <button
+                    onClick={() => setPage(prev => Math.min(prev + 1, pagination.totalPages))}
+                    disabled={pagination.currentPage === pagination.totalPages}
+                    className="px-3 py-1 border border-gray-300 rounded-lg text-sm disabled:opacity-50 hover:bg-gray-50"
+                  >
+                    Selanjutnya
+                  </button>
+                </div>
+              </div>
             </div>
             )}
           </div>
@@ -949,10 +1260,10 @@ const Dashboard = () => {
       {/* Preview Modal */}
       {previewFile && selectedApplicant && (
         <div className="fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl w-full max-w-6xl h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+          <div className="bg-white rounded-2xl w-full max-w-5xl h-[95vh] flex flex-col shadow-2xl overflow-hidden">
             <div className="p-4 border-b flex justify-between items-center bg-gray-50">
               <div>
-                <h3 className="text-lg font-bold text-gray-800">Verifikasi Berkas: {previewFile.label}</h3>
+                <h3 className="text-lg font-bold text-gray-800">Verifikasi Berkas: {previewFile.label} <span className="text-xs text-gray-400 font-normal">(v3)</span></h3>
                 <p className="text-sm text-gray-500">Pelamar: {selectedApplicant.name}</p>
               </div>
               <button 

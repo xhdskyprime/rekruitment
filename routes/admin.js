@@ -3,10 +3,12 @@ const router = express.Router();
 const Applicant = require('../models/Applicant');
 const Admin = require('../models/Admin');
 const PDFDocument = require('pdfkit');
+const bwipjs = require('bwip-js');
 const fs = require('fs');
 const path = require('path');
 const bcrypt = require('bcryptjs');
 const Position = require('../models/Position');
+const { Op } = require('sequelize');
 
 // Authentication Middleware
 const isAuthenticated = (req, res, next) => {
@@ -88,11 +90,95 @@ router.post('/logout', (req, res) => {
 // Admin Dashboard - List Applicants (Protected)
 router.get('/', isAuthenticated, async (req, res) => {
     try {
-        const applicants = await Applicant.findAll({ order: [['createdAt', 'DESC']] });
-        res.json({ applicants });
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 20; // Default 20 per page
+        const search = req.query.search || '';
+        const offset = (page - 1) * limit;
+
+        const where = {};
+        if (search) {
+            where[Op.or] = [
+                { name: { [Op.like]: `%${search}%` } },
+                { email: { [Op.like]: `%${search}%` } },
+                { position: { [Op.like]: `%${search}%` } },
+                { nik: { [Op.like]: `%${search}%` } }
+            ];
+        }
+
+        if (req.query.status) {
+            where.status = req.query.status;
+        }
+
+        if (req.query.attendanceStatus) {
+            where.attendanceStatus = req.query.attendanceStatus;
+        }
+
+        // Fetch paginated data
+        const { count, rows } = await Applicant.findAndCountAll({
+            where,
+            limit,
+            offset,
+            order: [['createdAt', 'DESC']]
+        });
+
+        // Fetch global stats (efficient counts with parallel execution)
+        const [total, pending, verified, rejected, present, absent] = await Promise.all([
+            Applicant.count(),
+            Applicant.count({ where: { status: 'pending' } }),
+            Applicant.count({ where: { status: 'verified' } }),
+            Applicant.count({ where: { status: 'rejected' } }),
+            Applicant.count({ where: { attendanceStatus: 'present' } }),
+            Applicant.count({ where: { status: 'verified', attendanceStatus: { [Op.ne]: 'present' } } })
+        ]);
+
+        const stats = { total, pending, verified, rejected, present, absent };
+
+        res.json({ 
+            applicants: rows,
+            pagination: {
+                totalItems: count,
+                totalPages: Math.ceil(count / limit),
+                currentPage: page,
+                limit
+            },
+            stats
+        });
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: 'Server Error' });
+    }
+});
+
+// Mark Attendance
+router.post('/attendance', isAuthenticated, async (req, res) => {
+    const { applicantId } = req.body;
+    try {
+        const applicant = await Applicant.findByPk(applicantId);
+        if (!applicant) {
+            return res.status(404).json({ error: 'Peserta tidak ditemukan' });
+        }
+        
+        if (applicant.status !== 'verified') {
+            return res.status(400).json({ error: 'Peserta belum lolos verifikasi berkas' });
+        }
+
+        if (applicant.attendanceStatus === 'present') {
+             return res.json({ 
+                success: true, 
+                message: 'Peserta sudah melakukan absensi sebelumnya', 
+                applicant,
+                alreadyPresent: true 
+            });
+        }
+
+        applicant.attendanceStatus = 'present';
+        applicant.attendanceTime = new Date();
+        await applicant.save();
+
+        res.json({ success: true, message: 'Absensi berhasil dicatat', applicant });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Server error' });
     }
 });
 
@@ -148,6 +234,13 @@ router.post('/verify-file/:id', isAuthenticated, async (req, res) => {
                 console.log(`[Verify] All files valid. Generating exam card...`);
                 applicant.status = 'verified';
                 
+                // Switch to On-the-fly Generation (Stateless)
+                // We no longer generate file on disk. 
+                // Instead, we point examCardPath to the dynamic endpoint.
+                applicant.examCardPath = `/api/applicant/${applicant.id}/exam-card?nik=${applicant.nik}`;
+                console.log(`[Verify] Exam card path set to dynamic URL: ${applicant.examCardPath}`);
+
+                /* Deprecated: File-based generation
                 // Generate PDF
                 try {
                     const doc = new PDFDocument();
@@ -171,6 +264,27 @@ router.post('/verify-file/:id', isAuthenticated, async (req, res) => {
                     doc.text(`ID Peserta: ${applicant.id}`);
                     doc.text(`Tanggal Ujian: ${new Date().toLocaleDateString()}`); 
                     doc.moveDown();
+                    
+                    // Generate QR Code
+                    try {
+                        const qrBuffer = await bwipjs.toBuffer({
+                            bcid:        'qrcode',       // QR Code type
+                            text:        applicant.id.toString(),    // Text to encode
+                            scale:       3,               // 3x scaling factor
+                            padding:     1,               // Padding around QR Code
+                            includetext: false,            // QR Code doesn't usually show text
+                        });
+                        
+                        doc.moveDown();
+                        doc.image(qrBuffer, {
+                            fit: [100, 100], // QR Code is square
+                            align: 'center'
+                        });
+                    } catch (e) {
+                        console.error("QR Code generation error:", e);
+                    }
+
+                    doc.moveDown();
                     doc.text('Harap bawa kartu ini saat ujian.', { align: 'center' });
                     doc.end();
 
@@ -186,6 +300,7 @@ router.post('/verify-file/:id', isAuthenticated, async (req, res) => {
                     // Don't fail the whole request, just log it? Or maybe fail?
                     // For now, let's just log and continue, maybe user can retry
                 }
+                */
             }
         } else {
             // Still pending
