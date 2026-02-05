@@ -121,15 +121,17 @@ router.get('/', isAuthenticated, async (req, res) => {
             order: [['createdAt', 'DESC']]
         });
 
-        // Fetch global stats (efficient counts)
-        const stats = {
-            total: await Applicant.count(),
-            pending: await Applicant.count({ where: { status: 'pending' } }),
-            verified: await Applicant.count({ where: { status: 'verified' } }),
-            rejected: await Applicant.count({ where: { status: 'rejected' } }),
-            present: await Applicant.count({ where: { attendanceStatus: 'present' } }),
-            absent: await Applicant.count({ where: { status: 'verified', attendanceStatus: { [Op.ne]: 'present' } } })
-        };
+        // Fetch global stats (efficient counts with parallel execution)
+        const [total, pending, verified, rejected, present, absent] = await Promise.all([
+            Applicant.count(),
+            Applicant.count({ where: { status: 'pending' } }),
+            Applicant.count({ where: { status: 'verified' } }),
+            Applicant.count({ where: { status: 'rejected' } }),
+            Applicant.count({ where: { attendanceStatus: 'present' } }),
+            Applicant.count({ where: { status: 'verified', attendanceStatus: { [Op.ne]: 'present' } } })
+        ]);
+
+        const stats = { total, pending, verified, rejected, present, absent };
 
         res.json({ 
             applicants: rows,

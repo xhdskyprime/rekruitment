@@ -79,6 +79,7 @@ const Dashboard = () => {
   const [applicants, setApplicants] = useState<Applicant[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [pagination, setPagination] = useState<Pagination>({ totalItems: 0, totalPages: 1, currentPage: 1, limit: 20 });
   const [stats, setStats] = useState<Stats>({ total: 0, pending: 0, verified: 0, rejected: 0, present: 0, absent: 0 });
   const [page, setPage] = useState(1);
@@ -129,12 +130,18 @@ const Dashboard = () => {
     setFilterStatus('');
   }, [activeTab]);
 
+  // Debounce search term
   useEffect(() => {
     const timer = setTimeout(() => {
-        if (currentUserRole) fetchApplicants();
+      setDebouncedSearch(searchTerm);
     }, 500);
     return () => clearTimeout(timer);
-  }, [page, searchTerm, activeTab, currentUserRole, filterStatus]);
+  }, [searchTerm]);
+
+  // Fetch data when dependencies change (immediate)
+  useEffect(() => {
+    if (currentUserRole) fetchApplicants();
+  }, [page, debouncedSearch, activeTab, currentUserRole, filterStatus]);
 
   const fetchApplicants = async () => {
     try {
