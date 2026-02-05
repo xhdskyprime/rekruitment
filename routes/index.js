@@ -6,6 +6,8 @@ const Applicant = require('../models/Applicant');
 const Position = require('../models/Position');
 
 const driveService = require('../services/driveService');
+const PDFDocument = require('pdfkit');
+const bwipjs = require('bwip-js');
 
 // Configure Multer for memory storage (for Google Drive upload)
 const storage = multer.memoryStorage();
@@ -119,6 +121,79 @@ router.get('/positions', async (req, res) => {
         const positions = await Position.findAll({ order: [['name', 'ASC']] });
         res.json({ positions });
     } catch (error) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Download Exam Card (On-the-fly generation)
+router.get('/api/applicant/:id/exam-card', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { nik } = req.query;
+
+        if (!nik) {
+            return res.status(400).json({ error: 'NIK is required for verification' });
+        }
+
+        const applicant = await Applicant.findOne({ where: { id, nik } });
+
+        if (!applicant) {
+            return res.status(404).json({ error: 'Applicant not found or NIK mismatch' });
+        }
+
+        if (applicant.status !== 'verified') {
+            return res.status(403).json({ error: 'Applicant is not verified yet' });
+        }
+
+        // Generate PDF
+        const doc = new PDFDocument();
+        const filename = `Kartu_Ujian_${applicant.name.replace(/\s+/g, '_')}.pdf`;
+
+        res.setHeader('Content-disposition', `inline; filename="${filename}"`);
+        res.setHeader('Content-type', 'application/pdf');
+
+        doc.pipe(res);
+
+        // Header
+        doc.fontSize(25).text('KARTU UJIAN', { align: 'center' });
+        doc.moveDown();
+        
+        // Info
+        doc.fontSize(14).text(`Nama: ${applicant.name}`);
+        doc.text(`NIK: ${applicant.nik}`);
+        doc.text(`Email: ${applicant.email}`);
+        doc.text(`Posisi: ${applicant.position}`);
+        doc.text(`ID Peserta: ${applicant.id}`);
+        doc.text(`Tanggal Ujian: ${new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`); 
+        doc.moveDown();
+        
+        // Generate QR Code
+        try {
+            const qrBuffer = await bwipjs.toBuffer({
+                bcid:        'qrcode',       // QR Code type
+                text:        applicant.id.toString(),    // Text to encode
+                scale:       3,               // 3x scaling factor
+                padding:     1,               // Padding around QR Code
+                includetext: false,            // QR Code doesn't usually show text
+            });
+            
+            doc.moveDown();
+            doc.image(qrBuffer, {
+                fit: [100, 100],
+                align: 'center'
+            });
+        } catch (e) {
+            console.error("QR Code generation error:", e);
+        }
+
+        doc.moveDown();
+        doc.fontSize(12).text('Harap bawa kartu ini dan KTP asli saat pelaksanaan ujian.', { align: 'center' });
+        doc.text('Tunjukkan QR Code ini kepada petugas saat absensi.', { align: 'center' });
+        
+        doc.end();
+
+    } catch (error) {
+        console.error('PDF Generation Error:', error);
         res.status(500).json({ error: 'Server error' });
     }
 });

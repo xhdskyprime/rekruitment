@@ -232,6 +232,13 @@ router.post('/verify-file/:id', isAuthenticated, async (req, res) => {
                 console.log(`[Verify] All files valid. Generating exam card...`);
                 applicant.status = 'verified';
                 
+                // Switch to On-the-fly Generation (Stateless)
+                // We no longer generate file on disk. 
+                // Instead, we point examCardPath to the dynamic endpoint.
+                applicant.examCardPath = `/api/applicant/${applicant.id}/exam-card?nik=${applicant.nik}`;
+                console.log(`[Verify] Exam card path set to dynamic URL: ${applicant.examCardPath}`);
+
+                /* Deprecated: File-based generation
                 // Generate PDF
                 try {
                     const doc = new PDFDocument();
@@ -291,6 +298,7 @@ router.post('/verify-file/:id', isAuthenticated, async (req, res) => {
                     // Don't fail the whole request, just log it? Or maybe fail?
                     // For now, let's just log and continue, maybe user can retry
                 }
+                */
             }
         } else {
             // Still pending
