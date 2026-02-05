@@ -123,6 +123,24 @@ const driveService = {
             console.error('Drive Get Error:', error);
             res.status(404).send('File not found');
         }
+    },
+
+    getFileBuffer: async (fileId) => {
+        const auth = getAuth();
+        if (!auth) throw new Error("Google Auth credentials missing");
+
+        const drive = google.drive({ version: 'v3', auth });
+
+        try {
+            const response = await drive.files.get(
+                { fileId: fileId, alt: 'media' },
+                { responseType: 'arraybuffer' }
+            );
+            return Buffer.from(response.data);
+        } catch (error) {
+            console.error('Drive Get Buffer Error:', error);
+            throw error;
+        }
     }
 };
 

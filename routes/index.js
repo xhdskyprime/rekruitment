@@ -146,7 +146,7 @@ router.get('/api/applicant/:id/exam-card', async (req, res) => {
         }
 
         // Generate PDF
-        const doc = new PDFDocument();
+        const doc = new PDFDocument({ size: 'A4', margin: 50 });
         const filename = `Kartu_Ujian_${applicant.name.replace(/\s+/g, '_')}.pdf`;
 
         res.setHeader('Content-disposition', `inline; filename="${filename}"`);
@@ -154,41 +154,105 @@ router.get('/api/applicant/:id/exam-card', async (req, res) => {
 
         doc.pipe(res);
 
+        // Card Layout Constants
+        const cardX = 50;
+        const cardY = 50;
+        const cardWidth = 500;
+        const cardHeight = 350;
+
+        // Draw Card Border
+        doc.rect(cardX, cardY, cardWidth, cardHeight).lineWidth(1).strokeColor('#dddddd').stroke();
+
+        // Watermark (Background)
+        doc.save();
+        doc.translate(cardX + cardWidth/2, cardY + cardHeight/2);
+        doc.rotate(-45);
+        doc.fontSize(60).fillColor('#f0f0f0').text('RSUD', 0, 0, { align: 'center' });
+        doc.restore();
+
         // Header
-        doc.fontSize(25).text('KARTU UJIAN', { align: 'center' });
-        doc.moveDown();
-        
-        // Info
-        doc.fontSize(14).text(`Nama: ${applicant.name}`);
-        doc.text(`NIK: ${applicant.nik}`);
-        doc.text(`Email: ${applicant.email}`);
-        doc.text(`Posisi: ${applicant.position}`);
-        doc.text(`ID Peserta: ${applicant.id}`);
-        doc.text(`Tanggal Ujian: ${new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`); 
-        doc.moveDown();
-        
-        // Generate QR Code
+        doc.font('Helvetica-Bold').fontSize(18).fillColor('#4c1d95')
+           .text('KARTU PESERTA UJIAN', cardX, cardY + 25, { width: cardWidth, align: 'center' });
+        doc.font('Helvetica').fontSize(10).fillColor('#666666')
+           .text('REKRUTMEN PEGAWAI RSUD TIGARAKSA', cardX, cardY + 50, { width: cardWidth, align: 'center' });
+
+        // Divider
+        const dividerY = cardY + 75;
+        doc.moveTo(cardX + 40, dividerY).lineTo(cardX + cardWidth - 40, dividerY)
+           .lineWidth(3).strokeColor('#4c1d95').stroke();
+        doc.moveTo(cardX + 40, dividerY + 4).lineTo(cardX + cardWidth - 40, dividerY + 4)
+           .lineWidth(1).strokeColor('#4c1d95').stroke();
+
+        // Content Area
+        const contentY = dividerY + 30;
+        const photoX = cardX + 40;
+        const photoWidth = 120;
+        const photoHeight = 160;
+        const detailsX = photoX + photoWidth + 40;
+
+        // Photo Handling
+        try {
+            if (applicant.pasFotoPath && applicant.pasFotoPath.includes('/file/proxy/')) {
+                const fileId = applicant.pasFotoPath.split('/file/proxy/')[1];
+                const photoBuffer = await driveService.getFileBuffer(fileId);
+                doc.image(photoBuffer, photoX, contentY, { width: photoWidth, height: photoHeight, fit: [photoWidth, photoHeight] });
+                // Draw border around photo
+                doc.rect(photoX, contentY, photoWidth, photoHeight).lineWidth(1).strokeColor('#dddddd').stroke();
+            } else {
+                // Draw placeholder
+                doc.rect(photoX, contentY, photoWidth, photoHeight).lineWidth(1).strokeColor('#dddddd').stroke();
+                doc.fontSize(10).fillColor('#999999').text('No Photo', photoX, contentY + 70, { width: photoWidth, align: 'center' });
+            }
+        } catch (e) {
+            console.error("Failed to load photo for PDF:", e);
+            // Draw placeholder on error
+            doc.rect(photoX, contentY, photoWidth, photoHeight).lineWidth(1).strokeColor('#dddddd').stroke();
+            doc.fontSize(10).fillColor('#999999').text('Photo Error', photoX, contentY + 70, { width: photoWidth, align: 'center' });
+        }
+
+        // Details
+        let currentY = contentY;
+        const labelWidth = 110;
+
+        const drawRow = (label, value, color = 'black', bold = false) => {
+            doc.font('Helvetica-Bold').fontSize(10).fillColor('#555555').text(label, detailsX, currentY);
+            doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fillColor(color).text(': ' + value, detailsX + labelWidth, currentY);
+            currentY += 20;
+        };
+
+        drawRow('Nomor Peserta', applicant.id.toString().padStart(6, '0'));
+        drawRow('Nama Lengkap', applicant.name);
+        drawRow('NIK', applicant.nik);
+        drawRow('Posisi Dilamar', applicant.position);
+        drawRow('Lokasi Ujian', 'RSUD Tigaraksa (Gedung Utama)');
+        drawRow('Jadwal Ujian', 'Menunggu Informasi Selanjutnya');
+        drawRow('Status', 'TERVERIFIKASI', '#16a34a', true); // Green-600
+
+        // QR Code
         try {
             const qrBuffer = await bwipjs.toBuffer({
-                bcid:        'qrcode',       // QR Code type
-                text:        applicant.id.toString(),    // Text to encode
-                scale:       3,               // 3x scaling factor
-                padding:     1,               // Padding around QR Code
-                includetext: false,            // QR Code doesn't usually show text
+                bcid:        'qrcode',
+                text:        applicant.id.toString(),
+                scale:       3,
+                padding:     1,
+                includetext: false,
             });
             
-            doc.moveDown();
-            doc.image(qrBuffer, {
-                fit: [100, 100],
-                align: 'center'
-            });
+            // Draw Label
+            doc.font('Helvetica-Bold').fontSize(10).fillColor('#555555').text('Scan QR Code', detailsX, currentY + 10);
+            
+            // Draw Image
+            doc.image(qrBuffer, detailsX + labelWidth, currentY, { width: 80, height: 80 });
         } catch (e) {
             console.error("QR Code generation error:", e);
         }
 
-        doc.moveDown();
-        doc.fontSize(12).text('Harap bawa kartu ini dan KTP asli saat pelaksanaan ujian.', { align: 'center' });
-        doc.text('Tunjukkan QR Code ini kepada petugas saat absensi.', { align: 'center' });
+        // Footer
+        const footerY = cardY + cardHeight - 50;
+        doc.fontSize(9).font('Helvetica-Oblique').fillColor('#888888')
+           .text('Kartu ini adalah bukti sah kepesertaan ujian.', cardX, footerY, { width: cardWidth, align: 'center' });
+        doc.text('Wajib dibawa beserta KTP asli saat pelaksanaan ujian.', cardX, footerY + 12, { width: cardWidth, align: 'center' });
+        doc.text(`Dicetak pada: ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`, cardX, footerY + 24, { width: cardWidth, align: 'center' });
         
         doc.end();
 
