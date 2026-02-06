@@ -1,12 +1,14 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { 
   Users, CheckCircle, XCircle, FileText, 
-  LogOut, Search, Clock, Menu, LayoutDashboard, Shield, User, Printer, ChevronDown, X, QrCode, Camera, CameraOff
+  LogOut, Search, Clock, Menu, LayoutDashboard, Shield, User, Printer, ChevronDown, ChevronRight, X, QrCode, Camera, CameraOff, Trash2, Briefcase, Database
 } from 'lucide-react';
 import QRCode from 'qrcode';
-import { Html5QrcodeScanner } from 'html5-qrcode';
+import { Html5Qrcode } from 'html5-qrcode';
+  import Swal from 'sweetalert2';
+  import JsBarcode from 'jsbarcode';
 
 interface Applicant {
   id: number;
@@ -44,6 +46,16 @@ interface Applicant {
   strRejectReason?: string;
   sertifikatRejectReason?: string;
   suratPernyataanRejectReason?: string;
+  suratLamaranPath: string;
+  suratLamaranStatus: string;
+  suratLamaranVerifiedAt?: string;
+  suratLamaranVerifiedBy?: string;
+  suratLamaranRejectReason?: string;
+  cvPath: string;
+  cvStatus: string;
+  cvVerifiedAt?: string;
+  cvVerifiedBy?: string;
+  cvRejectReason?: string;
   pasFotoPath?: string;
   examCardPath: string | null;
   createdAt: string;
@@ -81,6 +93,8 @@ interface Stats {
 }
 
 const Dashboard = () => {
+  const scannerRef = useRef<Html5Qrcode | null>(null);
+  const barcodeCanvasRef = useRef<HTMLCanvasElement>(null);
   const [applicants, setApplicants] = useState<Applicant[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -93,8 +107,10 @@ const Dashboard = () => {
   const [selectedApplicant, setSelectedApplicant] = useState<Applicant | null>(null);
   const [previewFile, setPreviewFile] = useState<{ type: string, label: string, url: string, status: string, verifiedAt?: string, verifiedBy?: string, rejectReason?: string } | null>(null);
   const [rejectReasonInput, setRejectReasonInput] = useState('');
-  const [activeTab, setActiveTab] = useState<'applicants' | 'verification' | 'users' | 'attendance'>('applicants');
+  const [activeTab, setActiveTab] = useState<'applicants' | 'verification' | 'users' | 'attendance' | 'positions'>('applicants');
   const [isSidebarOpen, setSidebarOpen] = useState(true);
+  const [isMasterMenuOpen, setMasterMenuOpen] = useState(true);
+  const [isStartingCamera, setIsStartingCamera] = useState(false);
   
   // Attendance State
   const [scanInput, setScanInput] = useState('');
@@ -291,13 +307,42 @@ const Dashboard = () => {
         message: res.data.message
       });
       
-      // Update local state
-      setApplicants(prev => prev.map(app => 
-        app.id === applicant.id ? { ...app, attendanceStatus: 'present', attendanceTime: new Date().toISOString() } : app
-      ));
+      // Update local state immediately
+      setApplicants(prev => {
+        const exists = prev.some(app => app.id === applicant.id);
+        if (exists) {
+            return prev.map(app => 
+                app.id === applicant.id ? { ...app, attendanceStatus: 'present', attendanceTime: new Date().toISOString() } : app
+            );
+        } else {
+            // Add to list if not exists (so it appears in history)
+            // Ensure we have minimal required fields or full object
+            return [{ ...applicant, attendanceStatus: 'present', attendanceTime: new Date().toISOString() }, ...prev];
+        }
+      });
+
+      // Update stats immediately
+      if (!alreadyPresent) {
+        setStats(prev => ({
+          ...prev,
+          present: prev.present + 1,
+          absent: Math.max(0, prev.absent - 1)
+        }));
+      }
       
       setScanInput(''); // Clear input for next scan
       if (showScanner) setShowScanner(false);
+
+      // Popup Feedback
+      Swal.fire({
+        icon: alreadyPresent ? 'warning' : 'success',
+        title: alreadyPresent ? 'Sudah Hadir' : 'Berhasil!',
+        text: `${applicant.name} - ${res.data.message}`,
+        timer: 2000,
+        showConfirmButton: false,
+        position: 'center'
+      });
+
     } catch (error: any) {
       setLastScanned({
         name: 'Unknown',
@@ -306,6 +351,43 @@ const Dashboard = () => {
       });
       setScanInput('');
       if (showScanner) setShowScanner(false);
+
+      Swal.fire({
+        icon: 'error',
+        title: 'Gagal',
+        text: error.response?.data?.error || 'Gagal memproses data'
+      });
+    }
+  };
+
+  const handleResetAttendance = async () => {
+    if (!window.confirm('Apakah Anda yakin ingin menghapus SEMUA data riwayat scan? Data yang sudah dihapus tidak dapat dikembalikan.')) {
+      return;
+    }
+
+    try {
+      await axios.post('/admin/reset-attendance', {}, { withCredentials: true });
+      
+      // Update local state
+      setApplicants(prev => prev.map(app => ({
+        ...app,
+        attendanceStatus: 'absent',
+        attendanceTime: undefined
+      })));
+      
+      setStats(prev => ({
+        ...prev,
+        present: 0,
+        absent: prev.total // Simplified assumption, or better: prev.present + prev.absent
+      }));
+
+      // Re-fetch to be sure
+      fetchApplicants();
+
+      alert('Data absensi berhasil direset');
+    } catch (error) {
+      console.error('Failed to reset attendance', error);
+      alert('Gagal mereset data absensi');
     }
   };
 
@@ -315,35 +397,91 @@ const Dashboard = () => {
   };
 
   useEffect(() => {
-    let scanner: Html5QrcodeScanner | null = null;
-    let timer: ReturnType<typeof setTimeout>;
+    const cleanupScanner = async () => {
+        if (scannerRef.current) {
+            try {
+                if (scannerRef.current.isScanning) {
+                    await scannerRef.current.stop();
+                }
+            } catch (e) {
+                console.log("Error stopping scanner", e);
+            }
+            try {
+                scannerRef.current.clear();
+            } catch (e) {
+                console.log("Error clearing scanner", e);
+            }
+            scannerRef.current = null;
+        }
+    };
 
     if (showScanner && activeTab === 'attendance') {
-        // Short timeout to ensure DOM element exists
-        timer = setTimeout(() => {
-            scanner = new Html5QrcodeScanner(
-                "reader",
-                { fps: 10, qrbox: { width: 250, height: 250 } },
-                /* verbose= */ false
-            );
-            
-            scanner.render((decodedText) => {
-                processAttendance(decodedText);
-                scanner?.clear();
-                setShowScanner(false);
-            }, (_error) => {
-                // ignore
-            });
-        }, 100);
+        // No auto-start, manual start only
+    } else {
+        cleanupScanner();
     }
 
     return () => {
-        clearTimeout(timer);
-        if (scanner) {
-            scanner.clear().catch(console.error);
-        }
+        cleanupScanner();
     };
   }, [showScanner, activeTab]);
+
+  const handleStartScanner = async () => {
+    setIsStartingCamera(true);
+    // Ensure element exists and has dimensions even if hidden
+    // We handle visibility via state, but element must be in DOM
+    
+    // Wait for a small tick to ensure any re-renders if needed (though we keep it in DOM now)
+    await new Promise(r => setTimeout(r, 50));
+
+    try {
+        const scanner = new Html5Qrcode("reader");
+        scannerRef.current = scanner;
+        
+        await scanner.start(
+            { facingMode: "environment" },
+            { 
+                fps: 10, 
+                qrbox: { width: 250, height: 250 },
+                aspectRatio: 1.0
+            },
+            (decodedText) => {
+                processAttendance(decodedText);
+                // Optional: Stop after scan? Or keep scanning?
+                // Keeping it scanning for bulk attendance
+            },
+            (errorMessage) => {
+                // ignore
+            }
+        );
+        
+        setShowScanner(true);
+    } catch (err) {
+        console.error("Failed to start camera", err);
+        Swal.fire({
+            icon: 'error',
+            title: 'Gagal Membuka Kamera',
+            text: 'Pastikan Anda memberikan izin akses kamera. Coba refresh halaman atau cek pengaturan browser.',
+            confirmButtonColor: '#4c1d95'
+        });
+        setShowScanner(false);
+    } finally {
+        setIsStartingCamera(false);
+    }
+  };
+
+  const handleStopScanner = async () => {
+      if (scannerRef.current) {
+          try {
+              await scannerRef.current.stop();
+              scannerRef.current.clear();
+          } catch (e) {
+              console.error(e);
+          }
+          scannerRef.current = null;
+      }
+      setShowScanner(false);
+  };
 
   const handleLogout = async () => {
     try {
@@ -396,6 +534,16 @@ const Dashboard = () => {
         verifiedAt = applicant.suratPernyataanVerifiedAt;
         verifiedBy = applicant.suratPernyataanVerifiedBy;
         rejectReason = applicant.suratPernyataanRejectReason;
+    }
+    else if (type === 'suratLamaran') {
+        verifiedAt = applicant.suratLamaranVerifiedAt;
+        verifiedBy = applicant.suratLamaranVerifiedBy;
+        rejectReason = applicant.suratLamaranRejectReason;
+    }
+    else if (type === 'cv') {
+        verifiedAt = applicant.cvVerifiedAt;
+        verifiedBy = applicant.cvVerifiedBy;
+        rejectReason = applicant.cvRejectReason;
     }
 
     setRejectReasonInput(rejectReason || '');
@@ -460,6 +608,35 @@ const Dashboard = () => {
       console.error("QR Code generation failed", e);
     }
 
+    // Generate Barcode using hidden canvas ref
+    let barcodeDataUrl = '';
+    if (barcodeCanvasRef.current) {
+        try {
+            const ctx = barcodeCanvasRef.current.getContext('2d');
+            if (ctx) ctx.clearRect(0, 0, barcodeCanvasRef.current.width, barcodeCanvasRef.current.height);
+
+            const jsBarcodeFn = (JsBarcode as any).default || JsBarcode;
+            
+            if (typeof jsBarcodeFn === 'function') {
+                jsBarcodeFn(barcodeCanvasRef.current, applicant.id.toString().padStart(6, '0'), {
+                    format: "CODE128",
+                    displayValue: true,
+                    height: 40,
+                    fontSize: 14,
+                    margin: 0,
+                    width: 2
+                });
+                barcodeDataUrl = barcodeCanvasRef.current.toDataURL("image/png");
+            } else {
+                console.error("JsBarcode function not found", jsBarcodeFn);
+            }
+        } catch (e) {
+            console.error("Ref-based barcode generation failed", e);
+        }
+    } else {
+        console.error("Barcode canvas ref is null");
+    }
+
     const printWindow = window.open('', '_blank', 'width=800,height=600');
     if (printWindow) {
         printWindow.document.write(`
@@ -483,9 +660,33 @@ const Dashboard = () => {
                         border-bottom: 3px double #4c1d95; 
                         padding-bottom: 20px; 
                         margin-bottom: 30px; 
+                        position: relative;
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        justify-content: center;
                     }
                     .header h1 { margin: 0; font-size: 24px; color: #4c1d95; text-transform: uppercase; letter-spacing: 1px; }
                     .header h2 { margin: 5px 0 0; font-size: 16px; color: #666; }
+                    .barcode-container {
+                        position: absolute;
+                        right: 0;
+                        top: 0;
+                        background: white;
+                        padding: 5px;
+                        display: flex;
+                        flex-direction: column;
+                        align-items: flex-end;
+                        min-width: 150px;
+                        min-height: 50px;
+                        z-index: 10;
+                    }
+                    .barcode-container img, .barcode-container svg {
+                        height: 50px;
+                        width: auto;
+                        display: block;
+                        max-width: 200px;
+                    }
                     .content { display: flex; gap: 30px; }
                     .photo-container { 
                         flex-shrink: 0;
@@ -550,6 +751,10 @@ const Dashboard = () => {
                     <div class="header">
                         <h1>KARTU PESERTA UJIAN</h1>
                         <h2>REKRUTMEN PEGAWAI RSUD TIGARAKSA</h2>
+                        <div class="barcode-container">
+                             ${barcodeDataUrl ? `<img src="${barcodeDataUrl}" alt="Barcode" />` : ''}
+                             <svg id="barcode-fallback" style="${barcodeDataUrl ? 'display:none' : ''}"></svg>
+                        </div>
                     </div>
                     <div class="content">
                         <div class="photo-container">
@@ -601,10 +806,25 @@ const Dashboard = () => {
                         <p>Dicetak pada: ${new Date().toLocaleString('id-ID')}</p>
                     </div>
                 </div>
+                <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.0/dist/JsBarcode.all.min.js"></script>
                 <script>
-                    setTimeout(() => {
-                        window.print();
-                    }, 500); // Delay slightly to ensure image load
+                    window.onload = function() {
+                        if (!"${barcodeDataUrl}") {
+                            try {
+                                JsBarcode("#barcode-fallback", "${applicant.id.toString().padStart(6, '0')}", {
+                                    format: "CODE128",
+                                    displayValue: true,
+                                    height: 40,
+                                    fontSize: 14,
+                                    margin: 0,
+                                    width: 2
+                                });
+                            } catch(e) { console.error("Fallback barcode failed", e); }
+                        }
+                        setTimeout(() => {
+                            window.print();
+                        }, 800);
+                    }
                 </script>
             </body>
             </html>
@@ -667,18 +887,81 @@ const Dashboard = () => {
           </button>
 
           {currentUserRole === 'superadmin' && (
-            <button
-              onClick={() => setActiveTab('users')}
-              className={`w-full flex items-center px-3 py-3 rounded-xl transition-all duration-200 group ${
-                activeTab === 'users'
-                  ? 'bg-purple-50 text-tangerang-purple font-medium shadow-sm'
-                  : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
-              } ${!isSidebarOpen && 'justify-center'}`}
-              title="Manajemen User"
-            >
-              <Users className={`w-5 h-5 flex-shrink-0 ${activeTab === 'users' ? 'text-tangerang-purple' : 'text-gray-400 group-hover:text-gray-600'}`} />
-              <span className={`ml-3 whitespace-nowrap ${!isSidebarOpen && 'hidden md:hidden'}`}>Manajemen User</span>
-            </button>
+            <>
+              {isSidebarOpen ? (
+                <div className="mt-6">
+                  <button
+                    onClick={() => setMasterMenuOpen(!isMasterMenuOpen)}
+                    className="w-full flex items-center justify-between px-3 py-3 rounded-xl text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-all duration-200 group"
+                  >
+                    <div className="flex items-center">
+                      <Database className="w-5 h-5 flex-shrink-0 text-gray-400 group-hover:text-gray-600" />
+                      <span className="ml-3 whitespace-nowrap font-medium">Master Data</span>
+                    </div>
+                    {isMasterMenuOpen ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
+                  </button>
+
+                  {isMasterMenuOpen && (
+                    <div className="mt-1 pl-3 space-y-1">
+                      <button
+                        onClick={() => setActiveTab('positions')}
+                        className={`w-full flex items-center px-3 py-2 rounded-lg transition-all duration-200 group text-sm ${
+                          activeTab === 'positions'
+                            ? 'bg-purple-50 text-tangerang-purple font-medium'
+                            : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
+                        }`}
+                      >
+                        <div className="w-5 flex justify-center mr-2">
+                            <Briefcase className={`w-4 h-4 flex-shrink-0 ${activeTab === 'positions' ? 'text-tangerang-purple' : 'text-gray-400'}`} />
+                        </div>
+                        Posisi Dilamar
+                      </button>
+
+                      <button
+                        onClick={() => setActiveTab('users')}
+                        className={`w-full flex items-center px-3 py-2 rounded-lg transition-all duration-200 group text-sm ${
+                          activeTab === 'users'
+                            ? 'bg-purple-50 text-tangerang-purple font-medium'
+                            : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
+                        }`}
+                      >
+                         <div className="w-5 flex justify-center mr-2">
+                            <Users className={`w-4 h-4 flex-shrink-0 ${activeTab === 'users' ? 'text-tangerang-purple' : 'text-gray-400'}`} />
+                         </div>
+                        Manajemen User
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <>
+                  <div className="mt-4 mb-2 h-px bg-gray-100 mx-4"></div>
+                  <button
+                    onClick={() => setActiveTab('positions')}
+                    className={`w-full flex items-center justify-center px-3 py-3 rounded-xl transition-all duration-200 group ${
+                      activeTab === 'positions'
+                        ? 'bg-purple-50 text-tangerang-purple shadow-sm'
+                        : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
+                    }`}
+                    title="Posisi Dilamar"
+                  >
+                    <Briefcase className={`w-5 h-5 flex-shrink-0 ${activeTab === 'positions' ? 'text-tangerang-purple' : 'text-gray-400 group-hover:text-gray-600'}`} />
+                  </button>
+
+                  <button
+                    onClick={() => setActiveTab('users')}
+                    className={`w-full flex items-center justify-center px-3 py-3 rounded-xl transition-all duration-200 group ${
+                      activeTab === 'users'
+                        ? 'bg-purple-50 text-tangerang-purple shadow-sm'
+                        : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
+                    }`}
+                    title="Manajemen User"
+                  >
+                    <Users className={`w-5 h-5 flex-shrink-0 ${activeTab === 'users' ? 'text-tangerang-purple' : 'text-gray-400 group-hover:text-gray-600'}`} />
+                  </button>
+                </>
+              )}
+            </>
           )}
         </nav>
 
@@ -703,7 +986,8 @@ const Dashboard = () => {
             <h2 className="text-xl font-semibold text-gray-800">
               {activeTab === 'applicants' ? 'Data Pelamar' : 
                activeTab === 'verification' ? 'Verifikasi Berkas' : 
-               activeTab === 'attendance' ? 'Absensi Ujian' : 'Manajemen User'}
+               activeTab === 'attendance' ? 'Absensi Ujian' : 
+               activeTab === 'positions' ? 'Master Posisi Dilamar' : 'Manajemen User'}
             </h2>
           </div>
 
@@ -784,31 +1068,42 @@ const Dashboard = () => {
               <div className="space-y-6 animate-in fade-in duration-500">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* Scanner Box */}
-                  <div className="bg-white p-8 rounded-2xl shadow-lg border border-gray-100 flex flex-col items-center justify-center text-center">
+                  <div className="bg-white p-8 rounded-2xl shadow-lg border border-gray-100 flex flex-col items-center justify-center text-center relative overflow-hidden">
                     <div className="w-16 h-16 bg-purple-100 text-tangerang-purple rounded-full flex items-center justify-center mb-4">
                       <QrCode className="w-8 h-8" />
                     </div>
                     <h3 className="text-xl font-bold text-gray-800 mb-2">Scan QR Code Peserta</h3>
                     <p className="text-gray-500 mb-6">Gunakan scanner manual atau buka kamera untuk scan QR Code pada kartu ujian peserta.</p>
                     
-                    {showScanner ? (
-                      <div className="w-full max-w-md mb-6 animate-in fade-in zoom-in duration-300">
+                    {/* Always render reader but control visibility to keep user gesture valid */}
+                    <div className={`w-full max-w-md mb-6 transition-all duration-300 ${showScanner ? 'block animate-in fade-in zoom-in' : 'invisible absolute opacity-0 pointer-events-none'}`} style={{ minHeight: showScanner ? 'auto' : '300px' }}>
                         <div id="reader" className="w-full overflow-hidden rounded-xl border-2 border-gray-200"></div>
                         <button 
-                          onClick={() => setShowScanner(false)}
+                          onClick={handleStopScanner}
                           className="mt-4 flex items-center justify-center gap-2 px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition font-medium w-full"
                         >
                           <CameraOff size={20} />
                           Tutup Kamera
                         </button>
-                      </div>
-                    ) : (
+                    </div>
+
+                    {!showScanner && (
                       <button 
-                        onClick={() => setShowScanner(true)}
-                        className="mb-8 flex items-center justify-center gap-2 px-6 py-3 bg-purple-50 border-2 border-purple-100 text-tangerang-purple rounded-xl font-bold hover:bg-purple-100 hover:border-purple-200 transition w-full max-w-md"
+                        onClick={handleStartScanner}
+                        disabled={isStartingCamera}
+                        className="mb-8 flex items-center justify-center gap-2 px-6 py-3 bg-purple-50 border-2 border-purple-100 text-tangerang-purple rounded-xl font-bold hover:bg-purple-100 hover:border-purple-200 transition w-full max-w-md disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        <Camera size={20} />
-                        Buka Kamera Scanner
+                        {isStartingCamera ? (
+                            <>
+                                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-current"></div>
+                                Membuka Kamera...
+                            </>
+                        ) : (
+                            <>
+                                <Camera size={20} />
+                                Buka Kamera Scanner
+                            </>
+                        )}
                       </button>
                     )}
 
@@ -872,7 +1167,19 @@ const Dashboard = () => {
                     </div>
 
                     <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex-1 h-[400px] flex flex-col">
-                      <h3 className="text-lg font-bold text-gray-800 mb-4">Riwayat Scan Terbaru</h3>
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-lg font-bold text-gray-800">Riwayat Scan Terbaru</h3>
+                        {applicants.some(a => a.attendanceStatus === 'present') && (
+                          <button
+                            onClick={handleResetAttendance}
+                            className="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded-lg transition-colors flex items-center gap-2 text-sm font-medium"
+                            title="Hapus Semua Riwayat Scan"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                            <span>Reset</span>
+                          </button>
+                        )}
+                      </div>
                       <div className="overflow-y-auto flex-1 pr-2 space-y-3">
                         {applicants
                           .filter(a => a.attendanceStatus === 'present')
@@ -882,7 +1189,10 @@ const Dashboard = () => {
                             <div key={app.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100">
                               <div>
                                 <p className="font-bold text-gray-800">{app.name}</p>
-                                <p className="text-xs text-gray-500">{app.nik}</p>
+                                <div className="flex flex-col gap-0.5 mt-1">
+                                  <p className="text-xs text-gray-500 font-mono">ID: {String(app.id).padStart(6, '0')}</p>
+                                  <p className="text-xs text-gray-400">{app.nik}</p>
+                                </div>
                               </div>
                               <div className="text-right">
                                 <span className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full font-medium">Hadir</span>
@@ -902,9 +1212,77 @@ const Dashboard = () => {
               </div>
             )}
 
-            {/* User Management Section */}
-            {activeTab === 'users' ? (
+            {/* User/Positions Management Section */}
+            {activeTab === 'users' || activeTab === 'positions' ? (
               <div className="space-y-6 animate-in fade-in duration-500">
+                {activeTab === 'positions' && (
+                  <div className="bg-white p-6 rounded-2xl shadow-lg border border-gray-100">
+                    <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center">
+                      <Shield className="w-5 h-5 mr-2 text-tangerang-purple" />
+                      Master Posisi Dilamar
+                    </h2>
+                    <form onSubmit={handleAddPosition} className="flex flex-col md:flex-row gap-4 items-end mb-6">
+                      <div className="flex-1 w-full">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Nama Posisi</label>
+                        <input
+                          type="text"
+                          required
+                          value={newPosition}
+                          onChange={e => setNewPosition(e.target.value)}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-tangerang-purple focus:border-transparent outline-none transition-all"
+                          placeholder="Contoh: Perawat, Bidan, Apoteker"
+                        />
+                      </div>
+                      <button
+                        type="submit"
+                        className="px-6 py-2 bg-tangerang-purple text-white rounded-lg hover:bg-tangerang-dark transition font-medium shadow-md hover:shadow-lg"
+                      >
+                        Tambah Posisi
+                      </button>
+                    </form>
+
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left">
+                        <thead className="bg-gray-50 text-gray-600 text-xs uppercase font-semibold">
+                          <tr>
+                            <th className="px-6 py-4">Nama Posisi</th>
+                            <th className="px-6 py-4">Dibuat Pada</th>
+                            <th className="px-6 py-4">Aksi</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {positions.map(pos => (
+                            <tr key={pos.id} className="hover:bg-gray-50 transition">
+                              <td className="px-6 py-4 font-semibold text-gray-900">{pos.name}</td>
+                              <td className="px-6 py-4 text-gray-500 text-sm">
+                                {new Date(pos.createdAt).toLocaleDateString('id-ID')}
+                              </td>
+                              <td className="px-6 py-4">
+                                {currentUserRole === 'superadmin' && (
+                                <button
+                                  onClick={() => handleDeletePosition(pos.id)}
+                                  className="text-red-500 hover:text-red-700 p-1.5 rounded-full hover:bg-red-50 transition"
+                                  title="Hapus Posisi"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                          {positions.length === 0 && (
+                            <tr>
+                              <td colSpan={3} className="px-6 py-8 text-center text-gray-500">Belum ada posisi.</td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === 'users' && (
+                  <>
                 <div className="bg-white p-6 rounded-2xl shadow-lg border border-gray-100">
                   <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center">
                     <Users className="w-5 h-5 mr-2 text-tangerang-purple" />
@@ -953,68 +1331,7 @@ const Dashboard = () => {
                   </form>
                 </div>
 
-                {currentUserRole === 'superadmin' && (
-                  <div className="bg-white p-6 rounded-2xl shadow-lg border border-gray-100">
-                    <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center">
-                      <Shield className="w-5 h-5 mr-2 text-tangerang-purple" />
-                      Master Posisi Dilamar
-                    </h2>
-                    <form onSubmit={handleAddPosition} className="flex flex-col md:flex-row gap-4 items-end mb-6">
-                      <div className="flex-1 w-full">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Nama Posisi</label>
-                        <input
-                          type="text"
-                          required
-                          value={newPosition}
-                          onChange={e => setNewPosition(e.target.value)}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-tangerang-purple focus:border-transparent outline-none transition-all"
-                          placeholder="Contoh: Perawat, Bidan, Apoteker"
-                        />
-                      </div>
-                      <button
-                        type="submit"
-                        className="px-6 py-2 bg-tangerang-purple text-white rounded-lg hover:bg-tangerang-dark transition font-medium shadow-md hover:shadow-lg"
-                      >
-                        Tambah Posisi
-                      </button>
-                    </form>
-
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left">
-                        <thead className="bg-gray-50 text-gray-600 text-xs uppercase font-semibold">
-                          <tr>
-                            <th className="px-6 py-4">Nama Posisi</th>
-                            <th className="px-6 py-4">Dibuat Pada</th>
-                            <th className="px-6 py-4">Aksi</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                          {positions.map(pos => (
-                            <tr key={pos.id} className="hover:bg-gray-50 transition">
-                              <td className="px-6 py-4 font-semibold text-gray-900">{pos.name}</td>
-                              <td className="px-6 py-4 text-gray-500 text-sm">
-                                {new Date(pos.createdAt).toLocaleDateString('id-ID')}
-                              </td>
-                              <td className="px-6 py-4">
-                                <button
-                                  onClick={() => handleDeletePosition(pos.id)}
-                                  className="text-red-600 hover:text-red-800 text-sm font-medium hover:underline"
-                                >
-                                  Hapus
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                          {positions.length === 0 && (
-                            <tr>
-                              <td colSpan={3} className="px-6 py-8 text-center text-gray-500">Belum ada posisi.</td>
-                            </tr>
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
+                {/* Moved to Positions Tab */}
 
                 <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
                   <div className="p-6 border-b border-gray-100">
@@ -1059,12 +1376,15 @@ const Dashboard = () => {
                               {new Date(user.createdAt).toLocaleDateString('id-ID')}
                             </td>
                             <td className="px-6 py-4">
+                              {currentUserRole === 'superadmin' && (
                               <button
                                 onClick={() => handleDeleteUser(user.id)}
-                                className="text-red-600 hover:text-red-800 text-sm font-medium hover:underline"
+                                className="text-red-500 hover:text-red-700 p-1.5 rounded-full hover:bg-red-50 transition"
+                                title="Hapus User"
                               >
-                                Hapus
+                                <Trash2 className="w-4 h-4" />
                               </button>
+                              )}
                             </td>
                           </tr>
                         ))}
@@ -1077,8 +1397,10 @@ const Dashboard = () => {
                     </table>
                   </div>
                 </div>
+                </>
+                )}
               </div>
-            ) : (
+            ) : (activeTab === 'applicants' || activeTab === 'verification') ? (
             /* Table Section */
             <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden animate-in fade-in duration-500">
               <div className="p-6 border-b border-gray-100 flex flex-col md:flex-row justify-between gap-4">
@@ -1169,7 +1491,7 @@ const Dashboard = () => {
                               </td>
                               <td className="px-6 py-4 text-gray-600">{app.education}</td>
                               <td className="px-6 py-4">
-                                <span className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium border border-blue-100">
+                                <span className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium border border-blue-100 whitespace-nowrap">
                                   {app.position}
                                 </span>
                               </td>
@@ -1196,14 +1518,16 @@ const Dashboard = () => {
                                 </div>
                               </td>
                               <td className="px-6 py-4">
-                                <span className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium border border-blue-100">
+                                <span className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium border border-blue-100 whitespace-nowrap">
                                   {app.position}
                                 </span>
                               </td>
                               <td className="px-6 py-4">
                                 <div className="flex gap-2">
                                   {[
+                                    { key: 'suratLamaran', label: 'Lamaran', status: app.suratLamaranStatus, path: app.suratLamaranPath },
                                     { key: 'ktp', label: 'KTP', status: app.ktpStatus, path: app.ktpPath },
+                                    { key: 'cv', label: 'CV', status: app.cvStatus, path: app.cvPath },
                                     { key: 'ijazah', label: 'Ijazah', status: app.ijazahStatus, path: app.ijazahPath },
                                     { key: 'str', label: 'STR', status: app.strStatus, path: app.strPath },
                                     { key: 'sertifikat', label: 'Sert', status: app.sertifikatStatus, path: app.sertifikatPath },
@@ -1244,13 +1568,15 @@ const Dashboard = () => {
                                     Cetak Kartu
                                   </button>
                                 )}
+                                {currentUserRole === 'superadmin' && (
                                 <button
                                   onClick={() => handleDeleteApplicant(app.id)}
                                   className="ml-2 text-red-500 hover:text-red-700 p-1.5 rounded-full hover:bg-red-50 transition"
                                   title="Hapus Pelamar"
                                 >
-                                  <div className="w-5 h-5 flex items-center justify-center border-2 border-red-500 rounded-full font-bold text-xs">X</div>
+                                  <Trash2 className="w-4 h-4" />
                                 </button>
+                                )}
                               </td>
                             </>
                           )}
@@ -1283,7 +1609,7 @@ const Dashboard = () => {
                 </div>
               </div>
             </div>
-            )}
+            ) : null}
           </div>
         </main>
       </div>
@@ -1362,6 +1688,7 @@ const Dashboard = () => {
           </div>
         </div>
       )}
+      <canvas ref={barcodeCanvasRef} style={{ display: 'none' }} />
     </div>
   );
 };
