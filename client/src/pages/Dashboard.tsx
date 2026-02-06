@@ -39,6 +39,11 @@ interface Applicant {
   suratPernyataanStatus: string;
   suratPernyataanVerifiedAt?: string;
   suratPernyataanVerifiedBy?: string;
+  ktpRejectReason?: string;
+  ijazahRejectReason?: string;
+  strRejectReason?: string;
+  sertifikatRejectReason?: string;
+  suratPernyataanRejectReason?: string;
   pasFotoPath?: string;
   examCardPath: string | null;
   createdAt: string;
@@ -86,7 +91,8 @@ const Dashboard = () => {
   const [filterStatus, setFilterStatus] = useState<string>('');
   
   const [selectedApplicant, setSelectedApplicant] = useState<Applicant | null>(null);
-  const [previewFile, setPreviewFile] = useState<{ type: string, label: string, url: string, status: string, verifiedAt?: string, verifiedBy?: string } | null>(null);
+  const [previewFile, setPreviewFile] = useState<{ type: string, label: string, url: string, status: string, verifiedAt?: string, verifiedBy?: string, rejectReason?: string } | null>(null);
+  const [rejectReasonInput, setRejectReasonInput] = useState('');
   const [activeTab, setActiveTab] = useState<'applicants' | 'verification' | 'users' | 'attendance'>('applicants');
   const [isSidebarOpen, setSidebarOpen] = useState(true);
   
@@ -364,12 +370,35 @@ const Dashboard = () => {
   const openPreview = (applicant: Applicant, type: string, label: string, path: string, status: string) => {
     setSelectedApplicant(applicant);
     
-    let verifiedAt, verifiedBy;
+    let verifiedAt, verifiedBy, rejectReason;
     // Map type to property names
-    if (type === 'ktp') { verifiedAt = applicant.ktpVerifiedAt; verifiedBy = applicant.ktpVerifiedBy; }
-    else if (type === 'ijazah') { verifiedAt = applicant.ijazahVerifiedAt; verifiedBy = applicant.ijazahVerifiedBy; }
-    else if (type === 'str') { verifiedAt = applicant.strVerifiedAt; verifiedBy = applicant.strVerifiedBy; }
-    else if (type === 'sertifikat') { verifiedAt = applicant.sertifikatVerifiedAt; verifiedBy = applicant.sertifikatVerifiedBy; }
+    if (type === 'ktp') { 
+        verifiedAt = applicant.ktpVerifiedAt; 
+        verifiedBy = applicant.ktpVerifiedBy; 
+        rejectReason = applicant.ktpRejectReason;
+    }
+    else if (type === 'ijazah') { 
+        verifiedAt = applicant.ijazahVerifiedAt; 
+        verifiedBy = applicant.ijazahVerifiedBy; 
+        rejectReason = applicant.ijazahRejectReason;
+    }
+    else if (type === 'str') { 
+        verifiedAt = applicant.strVerifiedAt; 
+        verifiedBy = applicant.strVerifiedBy; 
+        rejectReason = applicant.strRejectReason;
+    }
+    else if (type === 'sertifikat') { 
+        verifiedAt = applicant.sertifikatVerifiedAt; 
+        verifiedBy = applicant.sertifikatVerifiedBy; 
+        rejectReason = applicant.sertifikatRejectReason;
+    }
+    else if (type === 'suratPernyataan') {
+        verifiedAt = applicant.suratPernyataanVerifiedAt;
+        verifiedBy = applicant.suratPernyataanVerifiedBy;
+        rejectReason = applicant.suratPernyataanRejectReason;
+    }
+
+    setRejectReasonInput(rejectReason || '');
 
     setPreviewFile({
       type,
@@ -377,17 +406,27 @@ const Dashboard = () => {
       url: path,
       status,
       verifiedAt,
-      verifiedBy
+      verifiedBy,
+      rejectReason
     });
   };
 
   const verifyFile = async (status: 'valid' | 'invalid') => {
     if (!selectedApplicant || !previewFile) return;
 
+    let rejectReason = '';
+    if (status === 'invalid') {
+        if (!rejectReasonInput.trim()) {
+            alert('Harap masukkan alasan penolakan.');
+            return;
+        }
+        rejectReason = rejectReasonInput;
+    }
+
     try {
       await axios.post(
         `/admin/verify-file/${selectedApplicant.id}`, 
-        { fileType: previewFile.type, status },
+        { fileType: previewFile.type, status, rejectReason },
         { withCredentials: true }
       );
       
@@ -397,6 +436,7 @@ const Dashboard = () => {
       // Close modal
       setPreviewFile(null);
       setSelectedApplicant(null);
+      setRejectReasonInput('');
     } catch (error: any) {
       console.error('Verification failed', error);
       const msg = error.response?.data?.error || error.message || 'Gagal memverifikasi berkas.';
@@ -1274,36 +1314,49 @@ const Dashboard = () => {
               />
             </div>
 
-            <div className="p-4 border-t bg-white flex justify-between items-center">
-              <div className="text-sm text-gray-500">
-                <span className={`font-medium px-2 py-1 rounded ${
-                  previewFile.status === 'valid' ? 'bg-green-100 text-green-700' : 
-                  previewFile.status === 'invalid' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'
-                }`}>
-                  Status Saat Ini: {previewFile.status === 'valid' ? 'Sesuai' : previewFile.status === 'invalid' ? 'Tidak Sesuai' : 'Belum Diperiksa'}
-                </span>
-                {previewFile.verifiedBy && (
-                  <p className="mt-1 text-xs">
-                    <Clock className="w-3 h-3 inline mr-1" />
-                    Diverifikasi oleh {previewFile.verifiedBy} pada {new Date(previewFile.verifiedAt!).toLocaleString('id-ID')}
-                  </p>
-                )}
+            <div className="p-4 border-t bg-white flex flex-col gap-4">
+              <div className="w-full">
+                 <label className="block text-sm font-medium text-gray-700 mb-1">Komentar / Alasan Penolakan</label>
+                 <textarea 
+                    value={rejectReasonInput}
+                    onChange={(e) => setRejectReasonInput(e.target.value)}
+                    className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
+                    placeholder="Masukkan alasan jika berkas ditolak..."
+                    rows={2}
+                 />
               </div>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => verifyFile('invalid')}
-                  className="px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition font-medium flex items-center border border-red-200"
-                >
-                  <XCircle className="w-4 h-4 mr-2" />
-                  Tolak Berkas
-                </button>
-                <button
-                  onClick={() => verifyFile('valid')}
-                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-medium flex items-center shadow-md hover:shadow-lg"
-                >
-                  <CheckCircle className="w-4 h-4 mr-2" />
-                  Verifikasi Sesuai
-                </button>
+
+              <div className="flex justify-between items-center">
+                <div className="text-sm text-gray-500">
+                  <span className={`font-medium px-2 py-1 rounded ${
+                    previewFile.status === 'valid' ? 'bg-green-100 text-green-700' : 
+                    previewFile.status === 'invalid' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'
+                  }`}>
+                    Status Saat Ini: {previewFile.status === 'valid' ? 'Sesuai' : previewFile.status === 'invalid' ? 'Tidak Sesuai' : 'Belum Diperiksa'}
+                  </span>
+                  {previewFile.verifiedBy && (
+                    <p className="mt-1 text-xs">
+                      <Clock className="w-3 h-3 inline mr-1" />
+                      Diverifikasi oleh {previewFile.verifiedBy} pada {new Date(previewFile.verifiedAt!).toLocaleString('id-ID')}
+                    </p>
+                  )}
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => verifyFile('invalid')}
+                    className="px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition font-medium flex items-center border border-red-200"
+                  >
+                    <XCircle className="w-4 h-4 mr-2" />
+                    Tolak Berkas
+                  </button>
+                  <button
+                    onClick={() => verifyFile('valid')}
+                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-medium flex items-center shadow-md hover:shadow-lg"
+                  >
+                    <CheckCircle className="w-4 h-4 mr-2" />
+                    Verifikasi Sesuai
+                  </button>
+                </div>
               </div>
             </div>
           </div>

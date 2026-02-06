@@ -186,7 +186,7 @@ router.post('/attendance', isAuthenticated, async (req, res) => {
 router.post('/verify-file/:id', isAuthenticated, async (req, res) => {
     console.log(`[Verify] Request received for ID: ${req.params.id}, Body:`, req.body);
     try {
-        const { fileType, status } = req.body; // fileType: 'ktp', status: 'valid' | 'invalid'
+        const { fileType, status, rejectReason } = req.body; // fileType: 'ktp', status: 'valid' | 'invalid'
         const applicant = await Applicant.findByPk(req.params.id);
         
         if (!applicant) {
@@ -197,6 +197,13 @@ router.post('/verify-file/:id', isAuthenticated, async (req, res) => {
         // Update specific file status
         if (['ktp', 'ijazah', 'str', 'sertifikat', 'suratPernyataan'].includes(fileType)) {
             applicant[`${fileType}Status`] = status;
+            
+            // Handle Reject Reason
+            if (status === 'invalid') {
+                applicant[`${fileType}RejectReason`] = rejectReason || 'Dokumen tidak sesuai';
+            } else {
+                applicant[`${fileType}RejectReason`] = null;
+            }
             
             // Log verification details
             const admin = await Admin.findByPk(req.session.adminId);

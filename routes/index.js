@@ -9,8 +9,24 @@ const driveService = require('../services/driveService');
 const PDFDocument = require('pdfkit');
 const bwipjs = require('bwip-js');
 
-// Configure Multer for memory storage (for Google Drive upload)
-const storage = multer.memoryStorage();
+const fs = require('fs');
+
+// Configure Multer for disk storage (Local Storage)
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        const uploadDir = path.join(__dirname, '../public/uploads');
+        // Ensure directory exists
+        if (!fs.existsSync(uploadDir)){
+            fs.mkdirSync(uploadDir, { recursive: true });
+        }
+        cb(null, uploadDir);
+    },
+    filename: function (req, file, cb) {
+        // Create unique filename: timestamp-fieldname-originalName
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+    }
+});
 
 const upload = multer({ 
     storage: storage,
@@ -70,21 +86,21 @@ router.post('/register', (req, res, next) => {
         const { name, nik, gender, birthDate, education, email, phoneNumber, position } = req.body;
         console.log('Received body:', req.body); // Debugging
         
-        // Helper to upload to Drive and get ID
-        const uploadToDrive = async (file) => {
-             const driveFile = await driveService.uploadFile(file);
-             return '/file/proxy/' + driveFile.id; // Return proxy URL
+        // Helper to get local path
+        const getLocalPath = (fileArray) => {
+             if (fileArray && fileArray.length > 0) {
+                 // Return relative path for frontend access
+                 return '/uploads/' + fileArray[0].filename;
+             }
+             return null;
         };
 
-        // Upload files in parallel for better performance
-        const [ktpPath, ijazahPath, strPath, sertifikatPath, suratPernyataanPath, pasFotoPath] = await Promise.all([
-            uploadToDrive(files.ktp[0]),
-            uploadToDrive(files.ijazah[0]),
-            uploadToDrive(files.str[0]),
-            uploadToDrive(files.sertifikat[0]),
-            uploadToDrive(files.suratPernyataan[0]),
-            uploadToDrive(files.pasFoto[0])
-        ]);
+        const ktpPath = getLocalPath(files.ktp);
+        const ijazahPath = getLocalPath(files.ijazah);
+        const strPath = getLocalPath(files.str);
+        const sertifikatPath = getLocalPath(files.sertifikat);
+        const suratPernyataanPath = getLocalPath(files.suratPernyataan);
+        const pasFotoPath = getLocalPath(files.pasFoto);
 
         const applicant = await Applicant.create({
             name,
@@ -199,15 +215,15 @@ router.get('/api/applicant/:id/exam-card', async (req, res) => {
                 // Draw border around photo
                 doc.rect(photoX, contentY, photoWidth, photoHeight).lineWidth(1).strokeColor('#dddddd').stroke();
             } else {
-                // Draw placeholder
-                doc.rect(photoX, contentY, photoWidth, photoHeight).lineWidth(1).strokeColor('#dddddd').stroke();
-                doc.fontSize(10).fillColor('#999999').text('No Photo', photoX, contentY + 70, { width: photoWidth, align: 'center' });
+                 // Draw placeholder
+                 doc.rect(photoX, contentY, photoWidth, photoHeight).lineWidth(1).strokeColor('#dddddd').stroke();
+                 doc.fontSize(10).fillColor('#999999').text('No Photo', photoX, contentY + 70, { width: photoWidth, align: 'center' });
             }
         } catch (e) {
-            console.error("Failed to load photo for PDF:", e);
-            // Draw placeholder on error
+             console.error("Failed to load photo for PDF:", e);
+             // Draw placeholder on error
             doc.rect(photoX, contentY, photoWidth, photoHeight).lineWidth(1).strokeColor('#dddddd').stroke();
-            doc.fontSize(10).fillColor('#999999').text('Photo Error', photoX, contentY + 70, { width: photoWidth, align: 'center' });
+             doc.fontSize(10).fillColor('#999999').text('Photo Error', photoX, contentY + 70, { width: photoWidth, align: 'center' });
         }
 
         // Details

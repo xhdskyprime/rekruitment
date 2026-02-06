@@ -1,0 +1,30 @@
+version: "3.9"
+services:
+  api:
+    image: node:18-alpine
+    working_dir: /app
+    volumes:
+      - ./:/app
+      - app_node_modules:/app/node_modules
+      - sqlite_data:/app/data
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      - CLIENT_URL=http://localhost:5173
+      - NODE_ENV=development
+    command: sh -c "npm install && npm run dev"
+  client:
+    image: node:18-alpine
+    working_dir: /app/client
+    volumes:
+      - ./:/app
+      - client_node_modules:/app/client/node_modules
+    ports:
+      - "5173:5173"
+    command: sh -c "npm install --prefix client && npm run dev --prefix client -- --host"
+volumes:
+  app_node_modules:
+  client_node_modules:
+  sqlite_data:
