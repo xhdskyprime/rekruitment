@@ -51,7 +51,9 @@ const upload = multer({
 
 // Handle Registration
 const uploadFields = upload.fields([
+    { name: 'suratLamaran', maxCount: 1 },
     { name: 'ktp', maxCount: 1 },
+    { name: 'cv', maxCount: 1 },
     { name: 'ijazah', maxCount: 1 },
     { name: 'str', maxCount: 1 },
     { name: 'sertifikat', maxCount: 1 },
@@ -101,6 +103,8 @@ router.post('/register', (req, res, next) => {
         const sertifikatPath = getLocalPath(files.sertifikat);
         const suratPernyataanPath = getLocalPath(files.suratPernyataan);
         const pasFotoPath = getLocalPath(files.pasFoto);
+        const suratLamaranPath = getLocalPath(files.suratLamaran);
+        const cvPath = getLocalPath(files.cv);
 
         const applicant = await Applicant.create({
             name,
@@ -116,7 +120,9 @@ router.post('/register', (req, res, next) => {
             strPath,
             sertifikatPath,
             suratPernyataanPath,
-            pasFotoPath
+            pasFotoPath,
+            suratLamaranPath,
+            cvPath
         });
 
         res.status(201).json({ success: true, applicant });

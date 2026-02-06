@@ -49,6 +49,8 @@ const Applicant = sequelize.define('Applicant', {
     ijazahPath: { type: DataTypes.STRING, allowNull: false },
     strPath: { type: DataTypes.STRING, allowNull: false },
     sertifikatPath: { type: DataTypes.STRING, allowNull: false },
+    suratLamaranPath: { type: DataTypes.STRING, allowNull: true },
+    cvPath: { type: DataTypes.STRING, allowNull: true },
     suratPernyataanPath: { type: DataTypes.STRING, allowNull: true },
     
     // Verification Status per File
@@ -84,6 +86,22 @@ const Applicant = sequelize.define('Applicant', {
     sertifikatRejectReason: { type: DataTypes.STRING, allowNull: true },
     sertifikatVerifiedAt: { type: DataTypes.DATE, allowNull: true },
     sertifikatVerifiedBy: { type: DataTypes.STRING, allowNull: true },
+
+    suratLamaranStatus: { 
+        type: DataTypes.ENUM('pending', 'valid', 'invalid'), 
+        defaultValue: 'pending' 
+    },
+    suratLamaranRejectReason: { type: DataTypes.STRING, allowNull: true },
+    suratLamaranVerifiedAt: { type: DataTypes.DATE, allowNull: true },
+    suratLamaranVerifiedBy: { type: DataTypes.STRING, allowNull: true },
+
+    cvStatus: { 
+        type: DataTypes.ENUM('pending', 'valid', 'invalid'), 
+        defaultValue: 'pending' 
+    },
+    cvRejectReason: { type: DataTypes.STRING, allowNull: true },
+    cvVerifiedAt: { type: DataTypes.DATE, allowNull: true },
+    cvVerifiedBy: { type: DataTypes.STRING, allowNull: true },
 
     suratPernyataanStatus: { 
         type: DataTypes.ENUM('pending', 'valid', 'invalid'), 

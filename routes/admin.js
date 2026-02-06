@@ -182,6 +182,28 @@ router.post('/attendance', isAuthenticated, async (req, res) => {
     }
 });
 
+// Reset Attendance Data
+router.post('/reset-attendance', isAuthenticated, async (req, res) => {
+    try {
+        await Applicant.update(
+            { 
+                attendanceStatus: 'absent',
+                attendanceTime: null
+            },
+            { 
+                where: { 
+                    attendanceStatus: 'present' 
+                } 
+            }
+        );
+
+        res.json({ success: true, message: 'Data absensi berhasil direset' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
 // Update Verification Status Per File
 router.post('/verify-file/:id', isAuthenticated, async (req, res) => {
     console.log(`[Verify] Request received for ID: ${req.params.id}, Body:`, req.body);
@@ -195,7 +217,7 @@ router.post('/verify-file/:id', isAuthenticated, async (req, res) => {
         }
 
         // Update specific file status
-        if (['ktp', 'ijazah', 'str', 'sertifikat', 'suratPernyataan'].includes(fileType)) {
+        if (['ktp', 'ijazah', 'str', 'sertifikat', 'suratPernyataan', 'suratLamaran', 'cv'].includes(fileType)) {
             applicant[`${fileType}Status`] = status;
             
             // Handle Reject Reason
@@ -222,7 +244,9 @@ router.post('/verify-file/:id', isAuthenticated, async (req, res) => {
         // 3. Otherwise -> Global status = 'pending'
 
         const statuses = [
-            applicant.ktpStatus, 
+            applicant.suratLamaranStatus,
+            applicant.ktpStatus,
+            applicant.cvStatus,
             applicant.ijazahStatus, 
             applicant.strStatus, 
             applicant.sertifikatStatus,
@@ -341,8 +365,8 @@ router.post('/reject/:id', isAuthenticated, async (req, res) => {
     }
 });
 
-// Delete Applicant (Protected)
-router.delete('/applicant/:id', isAuthenticated, async (req, res) => {
+// Delete Applicant (Protected - Superadmin Only)
+router.delete('/applicant/:id', isSuperAdmin, async (req, res) => {
     try {
         const applicant = await Applicant.findByPk(req.params.id);
         if (!applicant) return res.status(404).json({ error: 'Pelamar tidak ditemukan' });

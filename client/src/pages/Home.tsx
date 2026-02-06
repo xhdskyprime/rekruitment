@@ -16,7 +16,9 @@ const Home = () => {
   });
   
   const [files, setFiles] = useState<{ [key: string]: File | null }>({
+    suratLamaran: null,
     ktp: null,
+    cv: null,
     ijazah: null,
     str: null,
     sertifikat: null,
@@ -26,7 +28,9 @@ const Home = () => {
 
   const [status, setStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
+  const [showAgeWarning, setShowAgeWarning] = useState(false);
   const [positions, setPositions] = useState<{ id: number, name: string }[]>([]);
+  const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
   React.useEffect(() => {
     const fetchPositions = async () => {
@@ -40,8 +44,78 @@ const Home = () => {
     fetchPositions();
   }, []);
 
+  const validateForm = () => {
+    const newErrors: { [key: string]: string } = {};
+    
+    if (!formData.name) newErrors.name = 'Nama lengkap wajib diisi';
+    if (!formData.nik) newErrors.nik = 'NIK wajib diisi';
+    else if (formData.nik.length !== 16) newErrors.nik = 'NIK harus 16 digit angka';
+    
+    if (!formData.birthDate) newErrors.birthDate = 'Tanggal lahir wajib diisi';
+    if (!formData.gender) newErrors.gender = 'Jenis kelamin wajib dipilih';
+    if (!formData.education) newErrors.education = 'Pendidikan terakhir wajib dipilih';
+    
+    if (!formData.email) newErrors.email = 'Email wajib diisi';
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) newErrors.email = 'Format email tidak valid (contoh: nama@email.com)';
+    
+    if (!formData.phoneNumber) newErrors.phoneNumber = 'Nomor HP wajib diisi';
+    else if (formData.phoneNumber.length < 10) newErrors.phoneNumber = 'Nomor HP minimal 10 digit';
+    
+    if (!formData.position) newErrors.position = 'Posisi dilamar wajib dipilih';
+    
+    // File validation
+    if (!files.pasFoto) newErrors.pasFoto = 'Pas foto wajib diupload';
+    if (!files.suratLamaran) newErrors.suratLamaran = 'Surat lamaran wajib diupload';
+    if (!files.ktp) newErrors.ktp = 'KTP wajib diupload';
+    if (!files.cv) newErrors.cv = 'CV wajib diupload';
+    if (!files.ijazah) newErrors.ijazah = 'Ijazah wajib diupload';
+    if (!files.str) newErrors.str = 'STR wajib diupload';
+    if (!files.sertifikat) newErrors.sertifikat = 'Sertifikat wajib diupload';
+    if (!files.suratPernyataan) newErrors.suratPernyataan = 'Surat pernyataan wajib diupload';
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
+    
+    // Clear error when user types
+    if (errors[name]) {
+      setErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors[name];
+        return newErrors;
+      });
+    }
+
+    if (name === 'birthDate' && value) {
+      const birthDate = new Date(value);
+      // Reset hours to ensure strict date comparison
+      birthDate.setHours(0, 0, 0, 0);
+      
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      // Calculate cutoff dates
+      const minAgeDate = new Date(today.getFullYear() - 18, today.getMonth(), today.getDate());
+      const maxAgeDate = new Date(today.getFullYear() - 35, today.getMonth(), today.getDate());
+
+      // Validation logic:
+      // 1. Must be at least 18 years old (birthDate <= minAgeDate)
+      // 2. Must be at most 35 years old (birthDate >= maxAgeDate)
+      // Note: If birthDate < maxAgeDate, it means they were born BEFORE the cutoff, so they are older than 35.
+      
+      const isTooYoung = birthDate > minAgeDate;
+      const isTooOld = birthDate < maxAgeDate;
+
+      if (isTooYoung || isTooOld) {
+        setShowAgeWarning(true);
+        setFormData(prev => ({ ...prev, [name]: '' }));
+        return;
+      }
+    }
+
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
@@ -50,9 +124,21 @@ const Home = () => {
       const file = e.target.files[0];
       const { name } = e.target;
 
-      // Validasi Ukuran File (Max 2MB)
-      if (file.size > 2 * 1024 * 1024) {
-        alert(`Ukuran file ${name} melebihi 2MB. Silakan upload file yang lebih kecil.`);
+      // Clear error
+      if (errors[name]) {
+        setErrors(prev => {
+          const newErrors = { ...prev };
+          delete newErrors[name];
+          return newErrors;
+        });
+      }
+
+      // Validasi Ukuran File
+      const maxSize = name === 'sertifikat' ? 2 * 1024 * 1024 : 1 * 1024 * 1024;
+      const maxSizeLabel = name === 'sertifikat' ? '2MB' : '1MB';
+
+      if (file.size > maxSize) {
+        alert(`Ukuran file melebihi ${maxSizeLabel}. Silakan upload file yang lebih kecil.`);
         e.target.value = ''; // Reset input file
         return;
       }
@@ -63,6 +149,13 @@ const Home = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!validateForm()) {
+      // Scroll to top to see errors if needed, or specific element
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
     console.log('Submitting form data:', formData); // Debugging
     setStatus('submitting');
     setErrorMessage('');
@@ -77,7 +170,9 @@ const Home = () => {
     data.append('phoneNumber', formData.phoneNumber);
     data.append('position', formData.position);
     
+    if (files.suratLamaran) data.append('suratLamaran', files.suratLamaran);
     if (files.ktp) data.append('ktp', files.ktp);
+    if (files.cv) data.append('cv', files.cv);
     if (files.ijazah) data.append('ijazah', files.ijazah);
     if (files.str) data.append('str', files.str);
     if (files.sertifikat) data.append('sertifikat', files.sertifikat);
@@ -138,13 +233,36 @@ const Home = () => {
         {/* Progress Header */}
         <div className="bg-gradient-to-r from-tangerang-purple to-tangerang-light p-1"></div>
         
-        <form onSubmit={handleSubmit} className="p-8 md:p-10">
+        <form onSubmit={handleSubmit} className="p-8 md:p-10" noValidate>
           {status === 'error' && (
             <div className="mb-8 bg-red-50 border-l-4 border-red-500 p-4 rounded-r flex items-start">
               <AlertCircle className="w-5 h-5 text-red-500 mr-3 mt-0.5" />
               <div>
                 <h4 className="font-bold text-red-700">Gagal Mengirim</h4>
                 <p className="text-red-600 text-sm">{errorMessage}</p>
+              </div>
+            </div>
+          )}
+
+          {showAgeWarning && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 animate-in fade-in duration-200">
+              <div className="bg-white rounded-xl shadow-2xl p-6 max-w-md w-full mx-4 transform scale-100 animate-in zoom-in duration-200">
+                <div className="flex flex-col items-center text-center">
+                  <div className="bg-red-100 p-3 rounded-full mb-4">
+                    <AlertCircle className="w-8 h-8 text-red-600" />
+                  </div>
+                  <h3 className="text-xl font-bold text-gray-900 mb-2">Mohon Maaf</h3>
+                  <p className="text-gray-600 mb-6">
+                    Usia anda tidak memenuhi syarat pendaftaran, mohon maaf anda tidak dapat melamar.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setShowAgeWarning(false)}
+                    className="w-full px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition font-medium"
+                  >
+                    Tutup
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -162,11 +280,12 @@ const Home = () => {
                   type="text" 
                   name="name" 
                   required
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-tangerang-purple focus:border-transparent transition"
+                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-tangerang-purple focus:border-transparent transition ${errors.name ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                   placeholder="Sesuai KTP"
                   value={formData.name}
                   onChange={handleInputChange}
                 />
+                {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name}</p>}
               </div>
 
               <div>
@@ -177,26 +296,36 @@ const Home = () => {
                   required
                   minLength={16}
                   maxLength={16}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-tangerang-purple focus:border-transparent transition"
+                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-tangerang-purple focus:border-transparent transition ${errors.nik ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                   placeholder="Nomor Induk Kependudukan (16 digit)"
                   value={formData.nik}
                   onChange={(e) => {
                     const value = e.target.value.replace(/\D/g, '');
                     setFormData(prev => ({ ...prev, nik: value }));
+                    // Clear error manually for custom handler
+                    if (errors.nik) {
+                      setErrors(prev => {
+                        const newErrors = { ...prev };
+                        delete newErrors.nik;
+                        return newErrors;
+                      });
+                    }
                   }}
                 />
+                {errors.nik && <p className="text-red-500 text-xs mt-1">{errors.nik}</p>}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Tanggal Lahir</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Tanggal Lahir <span className="text-xs text-gray-500 font-normal">(Max 35 Tahun)</span></label>
                 <input 
                   type="date" 
                   name="birthDate" 
                   required
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-tangerang-purple focus:border-transparent transition"
+                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-tangerang-purple focus:border-transparent transition ${errors.birthDate ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                   value={formData.birthDate}
                   onChange={handleInputChange}
                 />
+                {errors.birthDate && <p className="text-red-500 text-xs mt-1">{errors.birthDate}</p>}
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -205,7 +334,7 @@ const Home = () => {
                   <select 
                     name="gender" 
                     required
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-tangerang-purple focus:border-transparent transition bg-white"
+                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-tangerang-purple focus:border-transparent transition bg-white ${errors.gender ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                     value={formData.gender}
                     onChange={handleInputChange}
                   >
@@ -213,13 +342,14 @@ const Home = () => {
                     <option value="Laki-laki">Laki-laki</option>
                     <option value="Perempuan">Perempuan</option>
                   </select>
+                  {errors.gender && <p className="text-red-500 text-xs mt-1">{errors.gender}</p>}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Pendidikan Terakhir</label>
                   <select 
                     name="education" 
                     required
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-tangerang-purple focus:border-transparent transition bg-white"
+                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-tangerang-purple focus:border-transparent transition bg-white ${errors.education ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                     value={formData.education}
                     onChange={handleInputChange}
                   >
@@ -230,6 +360,7 @@ const Home = () => {
                     <option value="S2">S2</option>
                     <option value="S3">S3</option>
                   </select>
+                  {errors.education && <p className="text-red-500 text-xs mt-1">{errors.education}</p>}
                 </div>
               </div>
 
@@ -239,11 +370,12 @@ const Home = () => {
                   type="email" 
                   name="email" 
                   required
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-tangerang-purple focus:border-transparent transition"
+                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-tangerang-purple focus:border-transparent transition ${errors.email ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                   placeholder="email@contoh.com"
                   value={formData.email}
                   onChange={handleInputChange}
                 />
+                {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
               </div>
 
               <div>
@@ -252,19 +384,27 @@ const Home = () => {
                   type="tel" 
                   name="phoneNumber" 
                   required
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-tangerang-purple focus:border-transparent transition"
+                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-tangerang-purple focus:border-transparent transition ${errors.phoneNumber ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                   placeholder="Contoh: 081234567890"
                   value={formData.phoneNumber}
                   onChange={(e) => {
                     const value = e.target.value.replace(/\D/g, '');
                     setFormData(prev => ({ ...prev, phoneNumber: value }));
+                    if (errors.phoneNumber) {
+                      setErrors(prev => {
+                        const newErrors = { ...prev };
+                        delete newErrors.phoneNumber;
+                        return newErrors;
+                      });
+                    }
                   }}
                 />
+                {errors.phoneNumber && <p className="text-red-500 text-xs mt-1">{errors.phoneNumber}</p>}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Pas Foto 3x4 (Latar Belakang Merah/Biru)</label>
-                <div className="relative border-2 border-dashed border-gray-300 rounded-lg p-6 hover:bg-gray-50 transition text-center group">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Pas Foto 3x4 Terbaru</label>
+                <div className={`relative border-2 border-dashed rounded-lg p-6 hover:bg-gray-50 transition text-center group ${errors.pasFoto ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}>
                   <input 
                     type="file" 
                     name="pasFoto"
@@ -274,11 +414,14 @@ const Home = () => {
                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                   />
                   <div className="space-y-2">
-                    <Upload className="mx-auto h-10 w-10 text-gray-400 group-hover:text-tangerang-purple transition" />
+                    <Upload className={`mx-auto h-10 w-10 transition ${errors.pasFoto ? 'text-red-400' : 'text-gray-400 group-hover:text-tangerang-purple'}`} />
                     <div className="text-sm text-gray-600">
                       <span className="font-medium text-tangerang-purple">Upload file</span> atau drag and drop
                     </div>
-                    <p className="text-xs text-gray-500">JPG, PNG up to 2MB</p>
+                    <p className="text-xs text-gray-500">JPG, PNG maks 1MB</p>
+                    <p className="text-xs text-gray-500 font-medium mt-2 bg-gray-100 py-1 px-2 rounded-full inline-block">
+                      Berpakaian Rapih (Background Merah/Biru)
+                    </p>
                   </div>
                   {files.pasFoto && (
                     <div className="absolute inset-0 bg-green-50 bg-opacity-90 flex items-center justify-center rounded-lg">
@@ -289,6 +432,7 @@ const Home = () => {
                     </div>
                   )}
                 </div>
+                {errors.pasFoto && <p className="text-red-500 text-xs mt-1">{errors.pasFoto}</p>}
               </div>
 
               <div>
@@ -296,7 +440,7 @@ const Home = () => {
                 <select 
                   name="position" 
                   required
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-tangerang-purple focus:border-transparent transition bg-white"
+                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-tangerang-purple focus:border-transparent transition bg-white ${errors.position ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
                   value={formData.position}
                   onChange={handleInputChange}
                 >
@@ -316,6 +460,7 @@ const Home = () => {
                     </>
                   )}
                 </select>
+                {errors.position && <p className="text-red-500 text-xs mt-1">{errors.position}</p>}
               </div>
             </div>
 
@@ -345,24 +490,26 @@ const Home = () => {
                 </div>
 
                 {[
-                  { id: 'ktp', label: 'KTP', desc: 'Kartu Tanda Penduduk' },
-                  { id: 'ijazah', label: 'Ijazah Terakhir', desc: 'Scan Asli' },
-                  { id: 'str', label: 'STR', desc: 'Surat Tanda Registrasi' },
-                  { id: 'sertifikat', label: 'Sertifikat', desc: 'Sertifikat Keahlian' },
-                  { id: 'suratPernyataan', label: 'Surat Pernyataan', desc: 'Scan Asli Bermaterai' }
+                  { id: 'suratLamaran', label: 'Surat Lamaran', desc: 'Surat Lamaran Kerja (Maks 1MB)' },
+                  { id: 'ktp', label: 'KTP', desc: 'Kartu Tanda Penduduk (Maks 1MB)' },
+                  { id: 'cv', label: 'CV', desc: 'Curriculum Vitae (Maks 1MB)' },
+                  { id: 'ijazah', label: 'Ijazah Terakhir', desc: 'Scan Asli (Maks 1MB)' },
+                  { id: 'str', label: 'STR', desc: 'Surat Tanda Registrasi (Maks 1MB)' },
+                  { id: 'sertifikat', label: 'Sertifikat', desc: 'Sertifikat Keahlian (Maks 2MB)' },
+                  { id: 'suratPernyataan', label: 'Surat Pernyataan', desc: 'Scan Asli Bermaterai (Maks 1MB)' }
                 ].map((field) => (
-                  <div key={field.id} className="relative border border-dashed border-gray-300 rounded-lg p-4 hover:bg-gray-50 transition group">
+                  <div key={field.id} className={`relative border border-dashed rounded-lg p-4 hover:bg-gray-50 transition group ${errors[field.id] ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center">
-                        <div className={`p-2 rounded-lg mr-3 ${files[field.id] ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-500'}`}>
-                          {files[field.id] ? <CheckCircle className="w-5 h-5" /> : <FileText className="w-5 h-5" />}
+                        <div className={`p-2 rounded-lg mr-3 ${files[field.id] ? 'bg-green-100 text-green-600' : (errors[field.id] ? 'bg-red-100 text-red-500' : 'bg-gray-100 text-gray-500')}`}>
+                          {files[field.id] ? <CheckCircle className="w-5 h-5" /> : (errors[field.id] ? <AlertCircle className="w-5 h-5" /> : <FileText className="w-5 h-5" />)}
                         </div>
                         <div>
                           <p className="font-medium text-gray-700">{field.label}</p>
-                          <p className="text-xs text-gray-500">{files[field.id]?.name || field.desc}</p>
+                          <p className={`text-xs ${errors[field.id] ? 'text-red-500' : 'text-gray-500'}`}>{errors[field.id] || files[field.id]?.name || field.desc}</p>
                         </div>
                       </div>
-                      <label className="cursor-pointer bg-white border border-gray-200 shadow-sm px-3 py-1.5 rounded-md text-sm font-medium text-gray-600 hover:text-tangerang-purple hover:border-tangerang-purple transition">
+                      <label className={`cursor-pointer bg-white border shadow-sm px-3 py-1.5 rounded-md text-sm font-medium transition ${errors[field.id] ? 'text-red-600 border-red-200 hover:text-red-700 hover:border-red-300' : 'text-gray-600 border-gray-200 hover:text-tangerang-purple hover:border-tangerang-purple'}`}>
                         Browse
                         <input 
                           type="file" 
