@@ -257,15 +257,6 @@ const Dashboard = () => {
         alert(error.response?.data?.error || 'Gagal menghapus user');
     }
   };
-  
-  const handleUpdateRole = async (id: number, role: 'superadmin' | 'verificator') => {
-    try {
-      await axios.put(`/admin/users/${id}/role`, { role }, { withCredentials: true });
-      await fetchUsers();
-    } catch (error: any) {
-      alert(error.response?.data?.error || 'Gagal mengubah role user');
-    }
-  };
 
   const handleUpdateRole = async (id: number, newRole: string) => {
     try {
