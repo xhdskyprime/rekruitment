@@ -1038,7 +1038,7 @@ const Dashboard = () => {
                               <div className="relative inline-block group">
                                 <select
                                   value={user.role}
-                                  onChange={(e) => handleUpdateRole(user.id, e.target.value)}
+                                  onChange={(e) => handleUpdateRole(user.id, e.target.value as 'superadmin' | 'verificator')}
                                   className={`appearance-none pl-4 pr-9 py-1.5 rounded-full text-xs font-semibold border transition-all cursor-pointer focus:ring-2 focus:ring-offset-1 outline-none shadow-sm hover:shadow-md ${
                                     user.role === 'superadmin' 
                                       ? 'bg-purple-50 text-purple-700 border-purple-200 focus:ring-purple-400 hover:bg-purple-100' 
