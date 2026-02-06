@@ -57,6 +57,7 @@ const Applicant = sequelize.define('Applicant', {
         type: DataTypes.ENUM('pending', 'valid', 'invalid'), 
         defaultValue: 'pending' 
     },
+    ktpRejectReason: { type: DataTypes.STRING, allowNull: true },
     ktpVerifiedAt: { type: DataTypes.DATE, allowNull: true },
     ktpVerifiedBy: { type: DataTypes.STRING, allowNull: true },
 
@@ -64,6 +65,7 @@ const Applicant = sequelize.define('Applicant', {
         type: DataTypes.ENUM('pending', 'valid', 'invalid'), 
         defaultValue: 'pending' 
     },
+    ijazahRejectReason: { type: DataTypes.STRING, allowNull: true },
     ijazahVerifiedAt: { type: DataTypes.DATE, allowNull: true },
     ijazahVerifiedBy: { type: DataTypes.STRING, allowNull: true },
 
@@ -71,6 +73,7 @@ const Applicant = sequelize.define('Applicant', {
         type: DataTypes.ENUM('pending', 'valid', 'invalid'), 
         defaultValue: 'pending' 
     },
+    strRejectReason: { type: DataTypes.STRING, allowNull: true },
     strVerifiedAt: { type: DataTypes.DATE, allowNull: true },
     strVerifiedBy: { type: DataTypes.STRING, allowNull: true },
 
@@ -78,6 +81,7 @@ const Applicant = sequelize.define('Applicant', {
         type: DataTypes.ENUM('pending', 'valid', 'invalid'), 
         defaultValue: 'pending' 
     },
+    sertifikatRejectReason: { type: DataTypes.STRING, allowNull: true },
     sertifikatVerifiedAt: { type: DataTypes.DATE, allowNull: true },
     sertifikatVerifiedBy: { type: DataTypes.STRING, allowNull: true },
 
@@ -85,6 +89,7 @@ const Applicant = sequelize.define('Applicant', {
         type: DataTypes.ENUM('pending', 'valid', 'invalid'), 
         defaultValue: 'pending' 
     },
+    suratPernyataanRejectReason: { type: DataTypes.STRING, allowNull: true },
     suratPernyataanVerifiedAt: { type: DataTypes.DATE, allowNull: true },
     suratPernyataanVerifiedBy: { type: DataTypes.STRING, allowNull: true },
 
