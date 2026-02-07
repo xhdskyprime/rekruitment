@@ -450,7 +450,7 @@ const Dashboard = () => {
                 // Optional: Stop after scan? Or keep scanning?
                 // Keeping it scanning for bulk attendance
             },
-            (errorMessage) => {
+            (_errorMessage) => {
                 // ignore
             }
         );
