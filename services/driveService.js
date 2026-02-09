@@ -1,6 +1,7 @@
 const { google } = require('googleapis');
 const stream = require('stream');
 const path = require('path');
+const fs = require('fs');
 
 // Load credentials from environment variable or file
 const getAuth = () => {
@@ -43,7 +44,7 @@ const getAuth = () => {
 };
 
 const driveService = {
-    uploadFile: async (fileObject, folderId = null) => {
+    uploadFile: async (fileObject, folderId = null, customName = null) => {
         const auth = getAuth();
         if (!auth) throw new Error("Google Auth credentials missing");
         
@@ -57,8 +58,18 @@ const driveService = {
 
         const drive = google.drive({ version: 'v3', auth });
         
-        const bufferStream = new stream.PassThrough();
-        bufferStream.end(fileObject.buffer);
+        let mediaBody;
+        if (fileObject.path) {
+            // If file is on disk (multer diskStorage)
+            mediaBody = fs.createReadStream(fileObject.path);
+        } else if (fileObject.buffer) {
+            // If file is in memory (multer memoryStorage)
+            const bufferStream = new stream.PassThrough();
+            bufferStream.end(fileObject.buffer);
+            mediaBody = bufferStream;
+        } else {
+            throw new Error("Invalid file object: missing path or buffer");
+        }
 
         let targetFolderId = folderId;
         if (!targetFolderId && process.env.GOOGLE_DRIVE_FOLDER_ID) {
@@ -72,17 +83,17 @@ const driveService = {
 
         console.log(`Attempting upload to Folder ID: ${targetFolderId}`);
 
-        // OPTIMIZATION: Removed redundant folder permission check to speed up upload.
-        // The upload will fail automatically if permission is denied.
+        // Use custom name if provided, else timestamp-originalName
+        const fileName = customName || `${Date.now()}-${fileObject.originalname}`;
 
         const fileMetadata = {
-            name: `${Date.now()}-${fileObject.originalname}`,
+            name: fileName,
             parents: [targetFolderId], 
         };
 
         const media = {
             mimeType: fileObject.mimetype,
-            body: bufferStream,
+            body: mediaBody,
         };
 
         try {
