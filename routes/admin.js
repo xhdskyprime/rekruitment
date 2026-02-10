@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const Applicant = require('../models/Applicant');
 const Admin = require('../models/Admin');
+const SystemSetting = require('../models/SystemSetting');
 const PDFDocument = require('pdfkit');
 const bwipjs = require('bwip-js');
 const fs = require('fs');
@@ -85,6 +86,32 @@ router.post('/logout', (req, res) => {
     req.session.destroy(() => {
         res.json({ success: true, message: 'Logged out' });
     });
+});
+
+// Update System Settings
+router.put('/settings', isAuthenticated, async (req, res) => {
+    console.log('[API] PUT /settings called with:', req.body);
+    try {
+        const { recruitmentPhase } = req.body;
+        if (!['registration', 'verification', 'announcement'].includes(recruitmentPhase)) {
+            console.warn('[API] Invalid phase:', recruitmentPhase);
+            return res.status(400).json({ error: 'Invalid phase' });
+        }
+
+        console.log('[API] Finding/Creating SystemSetting...');
+        // Use upsert for atomic update/insert to avoid race conditions/locks
+        await SystemSetting.upsert({
+            key: 'recruitmentPhase',
+            value: recruitmentPhase
+        });
+        
+        console.log('[API] Settings updated successfully');
+
+        res.json({ success: true, recruitmentPhase });
+    } catch (error) {
+        console.error('[API] Error updating settings:', error);
+        res.status(500).json({ error: 'Failed to update settings' });
+    }
 });
 
 // Admin Dashboard - List Applicants (Protected)

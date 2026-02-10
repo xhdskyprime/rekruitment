@@ -5,6 +5,7 @@ const sequelize = require('./models/database');
 const Applicant = require('./models/Applicant');
 const Admin = require('./models/Admin');
 const Position = require('./models/Position');
+const SystemSetting = require('./models/SystemSetting');
 const methodOverride = require('method-override');
 const session = require('express-session');
 const SequelizeStore = require('connect-session-sequelize')(session.Store);
@@ -99,6 +100,7 @@ const indexRoutes = require('./routes/index');
 const adminRoutes = require('./routes/admin');
 
 app.use('/', indexRoutes);
+app.use('/api', indexRoutes); // Enable /api prefix for all index routes
 app.use('/admin', adminRoutes);
 
 // Catch-all handler for React
@@ -117,7 +119,9 @@ sequelize.sync({ alter: true }).then(async () => {
     }
     
     // Seed default admin
+    console.log('Checking Admin count...');
     const adminCount = await Admin.count();
+    console.log('Admin count:', adminCount);
     if (adminCount === 0) {
         const hashedPassword = await bcrypt.hash('password123', 10);
         await Admin.create({
@@ -126,6 +130,28 @@ sequelize.sync({ alter: true }).then(async () => {
             role: 'superadmin'
         });
         console.log('Default admin created: admin / password123 (superadmin)');
+    }
+
+    // Seed default settings
+    console.log('Seeding default settings...');
+    try {
+        // await SystemSetting.sync({ alter: true }); // Removed redundant sync
+        
+        console.log('Finding existing settings...');
+        const existing = await SystemSetting.findOne({ where: { key: 'recruitmentPhase' } });
+        if (!existing) {
+             console.log('Creating default setting...');
+             await SystemSetting.create({
+                key: 'recruitmentPhase',
+                value: 'registration',
+                description: 'Current phase of recruitment: registration, verification, announcement'
+             });
+             console.log('System settings created');
+        } else {
+            console.log('System settings loaded:', existing.value);
+        }
+    } catch (error) {
+        console.error('Error seeding SystemSetting:', error);
     }
 
     app.listen(PORT, '0.0.0.0', () => {
