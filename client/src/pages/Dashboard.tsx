@@ -5,10 +5,8 @@ import {
   Users, CheckCircle, XCircle, FileText, 
   LogOut, Search, Clock, Menu, LayoutDashboard, Shield, User, Printer, ChevronDown, ChevronRight, X, QrCode, Camera, CameraOff, Trash2, Briefcase, Database
 } from 'lucide-react';
-import QRCode from 'qrcode';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
-  import Swal from 'sweetalert2';
-  import JsBarcode from 'jsbarcode';
+import Swal from 'sweetalert2';
 
 interface Applicant {
   id: number;
@@ -437,7 +435,15 @@ const Dashboard = () => {
     await new Promise(r => setTimeout(r, 50));
 
     try {
-        const scanner = new Html5Qrcode("reader");
+        const scanner = new Html5Qrcode("reader", {
+            formatsToSupport: [ 
+                Html5QrcodeSupportedFormats.QR_CODE, 
+                Html5QrcodeSupportedFormats.CODE_128,
+                Html5QrcodeSupportedFormats.CODE_39,
+                Html5QrcodeSupportedFormats.EAN_13
+            ],
+            verbose: false
+        });
         scannerRef.current = scanner;
         
         await scanner.start(
@@ -445,13 +451,7 @@ const Dashboard = () => {
             { 
                 fps: 10, 
                 qrbox: { width: 250, height: 250 },
-                aspectRatio: 1.0,
-                formatsToSupport: [ 
-                    Html5QrcodeSupportedFormats.QR_CODE, 
-                    Html5QrcodeSupportedFormats.CODE_128,
-                    Html5QrcodeSupportedFormats.CODE_39,
-                    Html5QrcodeSupportedFormats.EAN_13
-                ]
+                aspectRatio: 1.0
             },
             (decodedText) => {
                 processAttendance(decodedText);
