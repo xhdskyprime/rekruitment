@@ -4,6 +4,7 @@ const multer = require('multer');
 const path = require('path');
 const Applicant = require('../models/Applicant');
 const Position = require('../models/Position');
+const SystemSetting = require('../models/SystemSetting');
 
 const driveService = require('../services/driveService');
 const PDFDocument = require('pdfkit');
@@ -48,6 +49,19 @@ const upload = multer({
 // router.get('/', (req, res) => {
 //     res.json({ message: 'Welcome to Recruitment API' });
 // });
+
+// Get Public System Settings
+router.get('/settings', async (req, res) => {
+    try {
+        const setting = await SystemSetting.findByPk('recruitmentPhase');
+        res.json({ 
+            recruitmentPhase: setting ? setting.value : 'registration' 
+        });
+    } catch (error) {
+        console.error('Error fetching settings:', error);
+        res.status(500).json({ error: 'Failed to fetch settings' });
+    }
+});
 
 // Handle Registration
 const uploadFields = upload.fields([

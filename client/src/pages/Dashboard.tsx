@@ -3,10 +3,11 @@ import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { 
   Users, CheckCircle, XCircle, FileText, 
-  LogOut, Search, Clock, Menu, LayoutDashboard, Shield, User, Printer, ChevronDown, ChevronRight, X, QrCode, Camera, CameraOff, Trash2, Briefcase, Database
+  LogOut, Search, Clock, Menu, LayoutDashboard, Shield, User, Printer, ChevronDown, ChevronRight, X, QrCode, Camera, CameraOff, Trash2, Briefcase, Database, Settings
 } from 'lucide-react';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import Swal from 'sweetalert2';
+import { useConfig } from '../contexts/ConfigContext';
 
 interface Applicant {
   id: number;
@@ -98,6 +99,7 @@ const Dashboard = () => {
   const [applicants, setApplicants] = useState<Applicant[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [currentPhase, setCurrentPhase] = useState<'registration' | 'verification' | 'announcement'>('registration');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [pagination, setPagination] = useState<Pagination>({ totalItems: 0, totalPages: 1, currentPage: 1, limit: 20 });
   const [stats, setStats] = useState<Stats>({ total: 0, pending: 0, verified: 0, rejected: 0, present: 0, absent: 0 });
@@ -107,7 +109,7 @@ const Dashboard = () => {
   const [selectedApplicant, setSelectedApplicant] = useState<Applicant | null>(null);
   const [previewFile, setPreviewFile] = useState<{ type: string, label: string, url: string, status: string, verifiedAt?: string, verifiedBy?: string, rejectReason?: string } | null>(null);
   const [rejectReasonInput, setRejectReasonInput] = useState('');
-  const [activeTab, setActiveTab] = useState<'applicants' | 'verification' | 'users' | 'attendance' | 'positions'>('applicants');
+  const [activeTab, setActiveTab] = useState<'applicants' | 'verification' | 'users' | 'attendance' | 'positions' | 'settings'>('applicants');
   const [isSidebarOpen, setSidebarOpen] = useState(true);
   const [isMasterMenuOpen, setMasterMenuOpen] = useState(true);
   const [isStartingCamera, setIsStartingCamera] = useState(false);
@@ -126,6 +128,7 @@ const Dashboard = () => {
   const [newPosition, setNewPosition] = useState<string>('');
 
   const navigate = useNavigate();
+  const { refreshConfig } = useConfig();
 
   const calculateAgeAtRegistration = (birthDate: string | undefined, registrationDate: string) => {
     if (!birthDate) return '-';
@@ -208,6 +211,7 @@ const Dashboard = () => {
           fetchUsers();
           fetchPositions();
       }
+      fetchSettings();
     } catch (error: any) {
       if (error.response?.status === 401) {
         navigate('/login');
@@ -291,6 +295,40 @@ const Dashboard = () => {
       alert(error.response?.data?.error || 'Gagal mengubah role');
       // Revert change by refetching
       fetchUsers();
+    }
+  };
+
+  const fetchSettings = async () => {
+    try {
+      const res = await axios.get('/api/settings');
+      if (res.data.recruitmentPhase) {
+        setCurrentPhase(res.data.recruitmentPhase);
+      }
+    } catch (error) {
+      console.error('Fetch settings error', error);
+    }
+  };
+
+  const updatePhase = async (phase: 'registration' | 'verification' | 'announcement') => {
+    try {
+      console.log('Updating phase to:', phase);
+      await axios.put('/admin/settings', { recruitmentPhase: phase }, { withCredentials: true });
+      setCurrentPhase(phase);
+      await refreshConfig(); // Update global config
+      Swal.fire({
+        icon: 'success',
+        title: 'Berhasil',
+        text: 'Fase rekrutmen berhasil diperbarui',
+        timer: 1500,
+        showConfirmButton: false
+      });
+    } catch (error) {
+      console.error('Update settings error', error);
+      Swal.fire({
+        icon: 'error',
+        title: 'Gagal',
+        text: 'Gagal memperbarui fase rekrutmen'
+      });
     }
   };
 
@@ -730,6 +768,21 @@ const Dashboard = () => {
               )}
             </>
           )}
+
+          {currentUserRole === 'superadmin' && (
+          <button
+            onClick={() => setActiveTab('settings')}
+            className={`w-full flex items-center px-3 py-3 rounded-xl transition-all duration-200 group ${
+              activeTab === 'settings'
+                ? 'bg-purple-50 text-tangerang-purple font-medium shadow-sm'
+                : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
+            } ${!isSidebarOpen && 'justify-center'}`}
+            title="Pengaturan Website"
+          >
+            <Settings className={`w-5 h-5 flex-shrink-0 ${activeTab === 'settings' ? 'text-tangerang-purple' : 'text-gray-400 group-hover:text-gray-600'}`} />
+            <span className={`ml-3 whitespace-nowrap ${!isSidebarOpen && 'hidden md:hidden'}`}>Pengaturan Website</span>
+          </button>
+          )}
         </nav>
 
         <div className="p-4 border-t border-gray-100">
@@ -754,7 +807,8 @@ const Dashboard = () => {
               {activeTab === 'applicants' ? 'Data Pelamar' : 
                activeTab === 'verification' ? 'Verifikasi Berkas' : 
                activeTab === 'attendance' ? 'Absensi Ujian' : 
-               activeTab === 'positions' ? 'Master Posisi Dilamar' : 'Manajemen User'}
+               activeTab === 'positions' ? 'Master Posisi Dilamar' : 
+               activeTab === 'settings' ? 'Pengaturan Website' : 'Manajemen User'}
             </h2>
           </div>
 
@@ -1335,7 +1389,7 @@ const Dashboard = () => {
                                     title="Cetak Kartu Ujian"
                                   >
                                     <Printer className="w-4 h-4 mr-1.5" />
-                                    Cetak Kartu
+                                    Kartu Ujian
                                   </button>
                                 )}
                                 {currentUserRole === 'superadmin' && (
@@ -1379,6 +1433,87 @@ const Dashboard = () => {
                 </div>
               </div>
             </div>
+            ) : activeTab === 'settings' && currentUserRole === 'superadmin' ? (
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <h3 className="text-lg font-bold text-gray-800 mb-6 flex items-center">
+                        <Settings className="w-5 h-5 mr-2 text-tangerang-purple" />
+                        Pengaturan Sistem Rekrutmen
+                    </h3>
+
+                    <div className="space-y-6">
+                        <div className="bg-blue-50 border border-blue-100 rounded-xl p-6">
+                            <h4 className="font-semibold text-blue-900 mb-4">Fase Rekrutmen Saat Ini</h4>
+                            <p className="text-sm text-blue-700 mb-6">
+                                Mengubah fase rekrutmen akan mempengaruhi aksesibilitas halaman bagi pelamar.
+                            </p>
+
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 relative z-0">
+                                <button
+                                    type="button"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        updatePhase('registration');
+                                    }}
+                                    className={`relative z-10 cursor-pointer p-4 rounded-xl border-2 transition-all duration-200 text-left group ${
+                                        currentPhase === 'registration'
+                                            ? 'border-blue-500 bg-white shadow-md ring-2 ring-blue-200 ring-offset-1'
+                                            : 'border-blue-200/50 bg-white/60 hover:bg-white hover:border-blue-300 hover:shadow-md hover:-translate-y-1'
+                                    }`}
+                                >
+                                    <div className="flex items-center justify-between mb-2">
+                                        <span className={`font-bold ${currentPhase === 'registration' ? 'text-blue-600' : 'text-gray-600 group-hover:text-blue-600'}`}>Pendaftaran</span>
+                                        {currentPhase === 'registration' && <CheckCircle className="w-5 h-5 text-blue-500" />}
+                                    </div>
+                                    <p className="text-xs text-gray-500">
+                                        Halaman pendaftaran dibuka. Pelamar dapat mengisi form dan upload berkas.
+                                    </p>
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        updatePhase('verification');
+                                    }}
+                                    className={`relative z-10 cursor-pointer p-4 rounded-xl border-2 transition-all duration-200 text-left group ${
+                                        currentPhase === 'verification'
+                                            ? 'border-yellow-500 bg-white shadow-md ring-2 ring-yellow-200 ring-offset-1'
+                                            : 'border-yellow-200/50 bg-white/60 hover:bg-white hover:border-yellow-300 hover:shadow-md hover:-translate-y-1'
+                                    }`}
+                                >
+                                    <div className="flex items-center justify-between mb-2">
+                                        <span className={`font-bold ${currentPhase === 'verification' ? 'text-yellow-600' : 'text-gray-600 group-hover:text-yellow-600'}`}>Verifikasi Berkas</span>
+                                        {currentPhase === 'verification' && <CheckCircle className="w-5 h-5 text-yellow-500" />}
+                                    </div>
+                                    <p className="text-xs text-gray-500">
+                                        Pendaftaran ditutup. Menampilkan halaman informasi verifikasi sedang berlangsung.
+                                    </p>
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        updatePhase('announcement');
+                                    }}
+                                    className={`relative z-10 cursor-pointer p-4 rounded-xl border-2 transition-all duration-200 text-left group ${
+                                        currentPhase === 'announcement'
+                                            ? 'border-green-500 bg-white shadow-md ring-2 ring-green-200 ring-offset-1'
+                                            : 'border-green-200/50 bg-white/60 hover:bg-white hover:border-green-300 hover:shadow-md hover:-translate-y-1'
+                                    }`}
+                                >
+                                    <div className="flex items-center justify-between mb-2">
+                                        <span className={`font-bold ${currentPhase === 'announcement' ? 'text-green-600' : 'text-gray-600 group-hover:text-green-600'}`}>Pengumuman</span>
+                                        {currentPhase === 'announcement' && <CheckCircle className="w-5 h-5 text-green-500" />}
+                                    </div>
+                                    <p className="text-xs text-gray-500">
+                                        Halaman status dibuka. Pelamar dapat melihat hasil dan cetak kartu ujian.
+                                    </p>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             ) : null}
           </div>
         </main>

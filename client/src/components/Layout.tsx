@@ -1,10 +1,12 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Menu, X } from 'lucide-react';
+import { useConfig } from '../contexts/ConfigContext';
 
 const Layout = ({ children }: { children: React.ReactNode }) => {
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
   const location = useLocation();
+  const { recruitmentPhase } = useConfig();
 
   const isActive = (path: string) => location.pathname === path;
   const isAdminRoute = location.pathname.startsWith('/admin');
@@ -19,50 +21,52 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
 
       {/* Main Header */}
       {!isAdminRoute && (
-        <header className="bg-white shadow-md sticky top-0 z-50">
-          <div className="container mx-auto px-4 py-4">
+        <header className="bg-white/90 backdrop-blur-md shadow-sm sticky top-0 z-50 border-b border-gray-100 transition-all duration-300">
+          <div className="container mx-auto px-4 lg:px-8 py-3">
             <div className="flex justify-between items-center">
               {/* Logo Section */}
-              <div className="flex items-center space-x-4">
-                <img 
-                  src="/logo-rsud.png" 
-                  alt="Logo RSUD Tigaraksa" 
-                  className="h-16 w-auto drop-shadow-sm"
-                />
-                <div className="hidden md:block">
-                  <h1 className="text-xl font-bold text-black tracking-wide">RSUD TIGARAKSA</h1>
-                  <h2 className="text-lg font-semibold text-gray-700">KABUPATEN TANGERANG</h2>
+              <Link to="/" className="flex items-center gap-4 group">
+                <div className="relative">
+                  <div className="absolute inset-0 bg-tangerang-purple/10 rounded-full blur-lg group-hover:bg-tangerang-purple/20 transition-all"></div>
+                  <img 
+                    src="/logo-rsud.png" 
+                    alt="Logo RSUD Tigaraksa" 
+                    className="h-14 w-auto drop-shadow-sm relative z-10 transition-transform group-hover:scale-105"
+                  />
                 </div>
-              </div>
+                <div className="hidden md:flex flex-col">
+                  <h1 className="text-xl font-bold text-gray-900 tracking-tight leading-tight group-hover:text-tangerang-purple transition-colors">RSUD TIGARAKSA</h1>
+                  <span className="text-xs font-medium text-gray-500 tracking-widest uppercase border-l-2 border-tangerang-gold pl-2 mt-0.5">Kabupaten Tangerang</span>
+                </div>
+              </Link>
 
               {/* Desktop Navigation */}
-              <nav className="hidden md:flex space-x-8">
-                <Link 
-                  to="/" 
-                  className={`font-medium transition-colors duration-200 ${isActive('/') ? 'text-tangerang-purple font-bold' : 'text-gray-600 hover:text-tangerang-purple'}`}
-                >
-                  Pendaftaran
-                </Link>
-                <Link 
-                  to="/status" 
-                  className={`font-medium transition-colors duration-200 ${isActive('/status') ? 'text-tangerang-purple font-bold' : 'text-gray-600 hover:text-tangerang-purple'}`}
-                >
-                  Cek Status
-                </Link>
-                <Link 
-                  to="/login" 
-                  className={`px-4 py-2 rounded-full border border-tangerang-purple text-tangerang-purple hover:bg-tangerang-purple hover:text-white transition-all duration-300 text-sm font-medium ${isActive('/login') ? 'bg-tangerang-purple text-white' : ''}`}
-                >
-                  Login Admin
-                </Link>
+              <nav className="hidden md:flex items-center gap-1">
+                {recruitmentPhase === 'registration' && (
+                  <Link 
+                    to="/" 
+                    className={`px-5 py-2 rounded-full text-sm font-medium transition-all duration-300 ${isActive('/') ? 'bg-tangerang-purple text-white shadow-md shadow-purple-200' : 'text-gray-600 hover:bg-gray-50 hover:text-tangerang-purple'}`}
+                  >
+                    Pendaftaran
+                  </Link>
+                )}
+                
+                {recruitmentPhase === 'announcement' && (
+                  <Link 
+                    to="/status" 
+                    className={`px-5 py-2 rounded-full text-sm font-medium transition-all duration-300 ${isActive('/status') ? 'bg-tangerang-purple text-white shadow-md shadow-purple-200' : 'text-gray-600 hover:bg-gray-50 hover:text-tangerang-purple'}`}
+                  >
+                    Cek Status
+                  </Link>
+                )}
               </nav>
 
               {/* Mobile Menu Button */}
               <button 
-                className="md:hidden text-gray-600 hover:text-tangerang-purple focus:outline-none"
+                className="md:hidden p-2 rounded-xl text-gray-600 hover:bg-gray-100 hover:text-tangerang-purple focus:outline-none transition-colors"
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
               >
-                {isMenuOpen ? <X className="w-8 h-8" /> : <Menu className="w-8 h-8" />}
+                {isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
               </button>
             </div>
           </div>
@@ -70,9 +74,12 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
           {/* Mobile Menu */}
           {isMenuOpen && (
             <div className="md:hidden bg-white border-t py-4 px-4 space-y-4 shadow-lg animate-in slide-in-from-top-5">
-              <Link to="/" className="block py-2 text-gray-700 font-medium hover:text-tangerang-purple" onClick={() => setIsMenuOpen(false)}>Pendaftaran</Link>
-              <Link to="/status" className="block py-2 text-gray-700 font-medium hover:text-tangerang-purple" onClick={() => setIsMenuOpen(false)}>Cek Status</Link>
-              <Link to="/login" className="block py-2 text-tangerang-purple font-bold" onClick={() => setIsMenuOpen(false)}>Login Admin</Link>
+              {recruitmentPhase === 'registration' && (
+                <Link to="/" className="block py-2 text-gray-700 font-medium hover:text-tangerang-purple" onClick={() => setIsMenuOpen(false)}>Pendaftaran</Link>
+              )}
+              {recruitmentPhase === 'announcement' && (
+                <Link to="/status" className="block py-2 text-gray-700 font-medium hover:text-tangerang-purple" onClick={() => setIsMenuOpen(false)}>Cek Status</Link>
+              )}
             </div>
           )}
         </header>
@@ -90,6 +97,7 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
         <div className="container mx-auto px-4 text-center">
           <p className="mb-2">&copy; 2026 Pemerintah Kabupaten Tangerang - UPTD RSUD Tigaraksa</p>
           <p className="text-sm text-gray-500">Sistem Informasi Rekrutmen Pegawai BLUD</p>
+          <Link to="/portal-rsud-secure-auth" className="text-slate-700 hover:text-slate-500 cursor-pointer text-xs inline-block mt-1 transition-colors px-1">!</Link>
         </div>
       </footer>
     </div>
