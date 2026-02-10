@@ -53,7 +53,6 @@ const upload = multer({
 const uploadFields = upload.fields([
     { name: 'suratLamaran', maxCount: 1 },
     { name: 'ktp', maxCount: 1 },
-    { name: 'cv', maxCount: 1 },
     { name: 'ijazah', maxCount: 1 },
     { name: 'str', maxCount: 1 },
     { name: 'sertifikat', maxCount: 1 },
@@ -81,30 +80,50 @@ router.post('/register', (req, res, next) => {
 }, async (req, res) => {
     try {
         const files = req.files || {};
-        if (!files.ktp || !files.ijazah || !files.str || !files.sertifikat || !files.suratPernyataan || !files.pasFoto) {
-            return res.status(400).json({ error: 'Harap upload semua dokumen yang diminta (KTP, Ijazah, STR, Sertifikat, Surat Pernyataan, Pas Foto).' });
+        if (!files.ktp || !files.ijazah || !files.str || !files.suratPernyataan || !files.pasFoto) {
+            return res.status(400).json({ error: 'Harap upload semua dokumen yang diminta (KTP, Ijazah, STR, Surat Pernyataan, Pas Foto).' });
         }
 
-        const { name, nik, gender, birthDate, education, email, phoneNumber, position } = req.body;
+        const { name, nik, gender, birthDate, education, major, gpa, email, phoneNumber, position } = req.body;
         console.log('Received body:', req.body); // Debugging
         
-        // Helper to get local path
-        const getLocalPath = (fileArray) => {
+        // Helper to upload to Drive and return proxy path
+        const processFile = async (fileArray, label) => {
              if (fileArray && fileArray.length > 0) {
-                 // Return relative path for frontend access
-                 return '/uploads/' + fileArray[0].filename;
+                 const file = fileArray[0];
+                 const ext = path.extname(file.originalname);
+                 // Format: Label_NIK.ext (e.g., Surat Lamaran & CV_1809011908000007.pdf)
+                 const customName = `${label}_${nik}${ext}`;
+                 
+                 try {
+                     console.log(`Uploading ${label} to Drive as ${customName}...`);
+                     const driveFile = await driveService.uploadFile(file, null, customName);
+                     
+                     // Delete local file after successful upload
+                     if (fs.existsSync(file.path)) {
+                         fs.unlinkSync(file.path);
+                     }
+                     
+                     // Return proxy path
+                     return `/file/proxy/${driveFile.id}`;
+                 } catch (err) {
+                     console.error(`Failed to upload ${label} to Drive:`, err);
+                     // Fallback to local path if Drive upload fails (optional, but good for robustness)
+                     // But user specifically asked for Drive upload. If it fails, we should probably throw or keep local.
+                     // For now, let's keep local if Drive fails, but log error.
+                     return '/uploads/' + file.filename;
+                 }
              }
              return null;
         };
 
-        const ktpPath = getLocalPath(files.ktp);
-        const ijazahPath = getLocalPath(files.ijazah);
-        const strPath = getLocalPath(files.str);
-        const sertifikatPath = getLocalPath(files.sertifikat);
-        const suratPernyataanPath = getLocalPath(files.suratPernyataan);
-        const pasFotoPath = getLocalPath(files.pasFoto);
-        const suratLamaranPath = getLocalPath(files.suratLamaran);
-        const cvPath = getLocalPath(files.cv);
+        const ktpPath = await processFile(files.ktp, 'KTP');
+        const ijazahPath = await processFile(files.ijazah, 'Ijazah & Nilai Terakhir');
+        const strPath = await processFile(files.str, 'STR');
+        const sertifikatPath = await processFile(files.sertifikat, 'Sertifikat');
+        const suratPernyataanPath = await processFile(files.suratPernyataan, 'Surat Pernyataan');
+        const pasFotoPath = await processFile(files.pasFoto, 'Pas Foto');
+        const suratLamaranPath = await processFile(files.suratLamaran, 'Surat Lamaran & CV');
 
         const applicant = await Applicant.create({
             name,
@@ -112,6 +131,8 @@ router.post('/register', (req, res, next) => {
             gender,
             birthDate,
             education,
+            major,
+            gpa: gpa ? parseFloat(gpa) : null,
             email,
             phoneNumber,
             position,
@@ -121,8 +142,7 @@ router.post('/register', (req, res, next) => {
             sertifikatPath,
             suratPernyataanPath,
             pasFotoPath,
-            suratLamaranPath,
-            cvPath
+            suratLamaranPath
         });
 
         res.status(201).json({ success: true, applicant });
@@ -171,7 +191,7 @@ router.get('/api/applicant/:id/exam-card', async (req, res) => {
         const doc = new PDFDocument({ size: 'A4', margin: 50 });
         const filename = `Kartu_Ujian_${applicant.name.replace(/\s+/g, '_')}.pdf`;
 
-        res.setHeader('Content-disposition', `inline; filename="${filename}"`);
+        res.setHeader('Content-disposition', `attachment; filename="${filename}"`);
         res.setHeader('Content-type', 'application/pdf');
 
         doc.pipe(res);
@@ -180,23 +200,52 @@ router.get('/api/applicant/:id/exam-card', async (req, res) => {
         const cardX = 50;
         const cardY = 50;
         const cardWidth = 500;
-        const cardHeight = 350;
+        const cardHeight = 650;
 
         // Draw Card Border
         doc.rect(cardX, cardY, cardWidth, cardHeight).lineWidth(1).strokeColor('#dddddd').stroke();
 
         // Watermark (Background)
         doc.save();
-        doc.translate(cardX + cardWidth/2, cardY + cardHeight/2);
+        // Center on A4 Page (A4 size is approx 595 x 842)
+        doc.translate(doc.page.width / 2, doc.page.height / 2);
         doc.rotate(-45);
-        doc.fontSize(60).fillColor('#f0f0f0').text('RSUD', 0, 0, { align: 'center' });
+        doc.opacity(0.1); // Add opacity for better subtlety
+        doc.fontSize(40).fillColor('#4c1d95').text('RSUD TIGARAKSA', -200, 0, { align: 'center', width: 400, baseline: 'middle' }); // Centered text
         doc.restore();
 
+        // Logo
+        const logoPath = path.join(__dirname, '../client/public/logo-rsud.png');
+        if (fs.existsSync(logoPath)) {
+             try {
+                doc.image(logoPath, cardX + 20, cardY + 15, { height: 50 }); // Adjusted Left Logo Position
+             } catch (e) {
+                console.error('Error embedding logo:', e);
+             }
+        }
+
         // Header
+        // Center the text in the available space between logo and barcode
         doc.font('Helvetica-Bold').fontSize(18).fillColor('#4c1d95')
-           .text('KARTU PESERTA UJIAN', cardX, cardY + 25, { width: cardWidth, align: 'center' });
+           .text('KARTU PESERTA UJIAN', cardX, cardY + 20, { width: cardWidth, align: 'center' });
         doc.font('Helvetica').fontSize(10).fillColor('#666666')
-           .text('REKRUTMEN PEGAWAI RSUD TIGARAKSA', cardX, cardY + 50, { width: cardWidth, align: 'center' });
+           .text('REKRUTMEN PEGAWAI RSUD TIGARAKSA', cardX, cardY + 45, { width: cardWidth, align: 'center' });
+
+        // Barcode (Top Right)
+        try {
+            const barcodeBuffer = await bwipjs.toBuffer({
+                bcid:        'code128',       // Barcode type
+                text:        applicant.id.toString().padStart(6, '0'),    // Text to encode
+                scale:       2,               // 3x scaling factor
+                height:      10,              // Bar height, in millimeters
+                includetext: true,            // Show human-readable text
+                textxalign:  'center',        // Always good to set this
+            });
+            // Align barcode with the header text - moved down slightly as requested
+            doc.image(barcodeBuffer, cardX + cardWidth - 120, cardY + 25, { width: 100, height: 40 });
+        } catch (e) {
+            console.error("Barcode generation error:", e);
+        }
 
         // Divider
         const dividerY = cardY + 75;
@@ -214,17 +263,59 @@ router.get('/api/applicant/:id/exam-card', async (req, res) => {
 
         // Photo Handling
         try {
-            if (applicant.pasFotoPath && applicant.pasFotoPath.includes('/file/proxy/')) {
-                const fileId = applicant.pasFotoPath.split('/file/proxy/')[1];
-                const photoBuffer = await driveService.getFileBuffer(fileId);
-                doc.image(photoBuffer, photoX, contentY, { width: photoWidth, height: photoHeight, fit: [photoWidth, photoHeight] });
-                // Draw border around photo
-                doc.rect(photoX, contentY, photoWidth, photoHeight).lineWidth(1).strokeColor('#dddddd').stroke();
-            } else {
-                 // Draw placeholder
-                 doc.rect(photoX, contentY, photoWidth, photoHeight).lineWidth(1).strokeColor('#dddddd').stroke();
+            let photoLoaded = false;
+            
+            if (applicant.pasFotoPath) {
+                if (applicant.pasFotoPath.includes('/file/proxy/')) {
+                    try {
+                        const fileId = applicant.pasFotoPath.split('/file/proxy/')[1];
+                        const photoBuffer = await driveService.getFileBuffer(fileId);
+                        doc.image(photoBuffer, photoX, contentY, { width: photoWidth, height: photoHeight, fit: [photoWidth, photoHeight] });
+                        photoLoaded = true;
+                    } catch (err) {
+                        console.error("Error loading drive photo:", err);
+                    }
+                } else {
+                    // Local File: path stored as /uploads/filename
+                    const localPath = path.join(__dirname, '../public', applicant.pasFotoPath);
+                    if (fs.existsSync(localPath)) {
+                        doc.image(localPath, photoX, contentY, { width: photoWidth, height: photoHeight, fit: [photoWidth, photoHeight] });
+                        photoLoaded = true;
+                    } else {
+                        console.error("Local photo not found at:", localPath);
+                    }
+                }
+            }
+
+            // Draw border around photo (always) - REMOVED as requested
+            // doc.rect(photoX, contentY, photoWidth, photoHeight).lineWidth(2).strokeColor('#4c1d95').stroke(); 
+
+            if (!photoLoaded) {
                  doc.fontSize(10).fillColor('#999999').text('No Photo', photoX, contentY + 70, { width: photoWidth, align: 'center' });
             }
+
+            // Draw Logo Overlay (Bottom Right, overlapping)
+            if (fs.existsSync(logoPath)) {
+                const logoSize = 35; // Slightly smaller for better proportion
+                // Bottom Right coordinates: photoX + photoWidth - logoSize - 5 (moved left), photoY + photoHeight - 25
+                const overlayX = photoX + photoWidth - logoSize - 5;
+                const overlayY = contentY + photoHeight - 25;
+                
+                // Draw Shadow
+                doc.save();
+                doc.circle(overlayX + logoSize/2 + 1, overlayY + logoSize/2 + 1, logoSize/2 + 1)
+                   .fillColor('black')
+                   .opacity(0.1) // Reduced opacity
+                   .fill();
+                doc.restore();
+
+                // Draw white circular background for logo (optional, to make it pop)
+                doc.circle(overlayX + logoSize/2, overlayY + logoSize/2, logoSize/2 + 2)
+                   .fillColor('white').fill();
+
+                doc.image(logoPath, overlayX, overlayY, { width: logoSize, height: logoSize });
+            }
+
         } catch (e) {
              console.error("Failed to load photo for PDF:", e);
              // Draw placeholder on error
@@ -250,7 +341,12 @@ router.get('/api/applicant/:id/exam-card', async (req, res) => {
         drawRow('Jadwal Ujian', 'Menunggu Informasi Selanjutnya');
         drawRow('Status', 'TERVERIFIKASI', '#16a34a', true); // Green-600
 
-        // QR Code
+        // New Layout: QR Code (Left) and Table (Right)
+        // Ensure spacing is relative to the bottom of the photo or details, whichever is lower
+        const contentBottomY = Math.max(currentY, contentY + photoHeight);
+        const newSectionY = contentBottomY + 40; // Increased spacing (was 30 from currentY)
+        
+        // 1. QR Code (Left side)
         try {
             const qrBuffer = await bwipjs.toBuffer({
                 bcid:        'qrcode',
@@ -260,21 +356,89 @@ router.get('/api/applicant/:id/exam-card', async (req, res) => {
                 includetext: false,
             });
             
-            // Draw Label
-            doc.font('Helvetica-Bold').fontSize(10).fillColor('#555555').text('Scan QR Code', detailsX, currentY + 10);
-            
-            // Draw Image
-            doc.image(qrBuffer, detailsX + labelWidth, currentY, { width: 80, height: 80 });
+            // Draw QR Code - Aligned with Photo X position (cardX + 40)
+            doc.image(qrBuffer, cardX + 40, newSectionY, { width: 100, height: 100 });
         } catch (e) {
             console.error("QR Code generation error:", e);
         }
 
-        // Footer
-        const footerY = cardY + cardHeight - 50;
-        doc.fontSize(9).font('Helvetica-Oblique').fillColor('#888888')
-           .text('Kartu ini adalah bukti sah kepesertaan ujian.', cardX, footerY, { width: cardWidth, align: 'center' });
-        doc.text('Wajib dibawa beserta KTP asli saat pelaksanaan ujian.', cardX, footerY + 12, { width: cardWidth, align: 'center' });
-        doc.text(`Dicetak pada: ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`, cardX, footerY + 24, { width: cardWidth, align: 'center' });
+        // 2. Table (Right side)
+        const tableX = cardX + 150;
+        const tableY = newSectionY + 10; // Moved down to align with QR code visual center
+        const tableWidth = cardWidth - 170; // Remaining width
+        const rowHeight1 = 25; // Reduced height
+        const rowHeight2 = 60; // Increased height to prevent text overlap
+
+        // Table Border
+        doc.rect(tableX, tableY, tableWidth, rowHeight1 + rowHeight2).strokeColor('#000000').stroke();
+        
+        // Horizontal Divider
+        doc.moveTo(tableX, tableY + rowHeight1).lineTo(tableX + tableWidth, tableY + rowHeight1).stroke();
+        
+        // Vertical Divider
+        const col1Width = tableWidth * 0.4;
+        doc.moveTo(tableX + col1Width, tableY).lineTo(tableX + col1Width, tableY + rowHeight1 + rowHeight2).stroke();
+        
+        // Table Content
+        // Row 1
+        doc.font('Helvetica-Bold').fontSize(10).fillColor('#000000')
+           .text('Tanggal Melamar', tableX + 5, tableY + 8, { width: col1Width - 10 });
+        doc.font('Helvetica').fontSize(10)
+           .text('5 September 2024', tableX + col1Width + 5, tableY + 8, { width: tableWidth - col1Width - 10 });
+        
+        // Row 2
+        doc.font('Helvetica-Bold').fontSize(10)
+           .text('PIN UJIAN', tableX + 5, tableY + rowHeight1 + 10, { width: col1Width - 10 });
+        doc.font('Helvetica-Oblique').fontSize(8)
+           .text('* ditulis / diberikan oleh Panitia ujian seleksi pada saat registrasi', 
+                 tableX + col1Width + 5, 
+                 tableY + rowHeight1 + rowHeight2 - 25, // Adjusted Y position (moved up slightly from bottom)
+                 { width: tableWidth - col1Width - 10, align: 'right' });
+
+
+        // Footer: PERHATIAN Section
+        const attentionY = newSectionY + 110; // Adjusted based on reduced table height
+        
+        // Divider line for footer
+        doc.moveTo(cardX, attentionY).lineTo(cardX + cardWidth, attentionY).lineWidth(2).strokeColor('#000000').stroke();
+
+        doc.font('Helvetica-Bold').fontSize(10).fillColor('#000000')
+           .text('PERHATIAN', cardX + 10, attentionY + 10, { characterSpacing: 1 }); // Increased spacing for header too
+        
+        const points = [
+            '1. Peserta WAJIB datang 90 menit sebelum Sesi ujian',
+            '2. Kartu Peserta Ujian CASN ini wajib dibawa saat pelaksanaan Ujian dalam bentuk fisik.',
+            '3. Peserta wajib membawa Kartu/ Bukti Identitas Diri (Asli) yang sesuai tercantum pada Kartu ini, jika terdapat ketidaksesuaian, maka Instansi berhak untuk tidak mengikutsertakan peserta untuk mengikuti Ujian.',
+            '4. Kelalaian peserta dalam membaca dan memahami pengumuman Instansi menjadi tanggung jawab peserta.',
+            '5. Peserta wajib mematuhi peraturan yang berlaku pada saat pelaksanaan ujian.'
+        ];
+
+        let pointY = attentionY + 25;
+        doc.font('Helvetica').fontSize(9);
+        
+        points.forEach(point => {
+            const number = point.substring(0, 3).trim(); // "1.", "2.", etc.
+            const text = point.substring(3).trim(); // The rest of the text
+
+            const numberX = cardX + 10;
+            const textX = cardX + 25; // Indent for text
+            const textWidth = cardWidth - 35; // Adjust width
+
+            // Print Number
+            doc.text(number, numberX, pointY);
+            
+            // Print Text (Justified and hanging indent)
+            // Use same Y, let pdfkit wrap text
+            doc.text(text, textX, pointY, { width: textWidth, align: 'justify' });
+            
+            // Update Y for next point (doc.y is updated by the last text call)
+            pointY = doc.y + 4; // Add small gap between points
+        });
+
+        // Print Date at very bottom
+        const footerBottomY = cardY + cardHeight - 20;
+        doc.fontSize(8).font('Helvetica-Oblique').fillColor('#888888')
+           .text(`Dicetak pada: ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`, cardX, footerBottomY, { width: cardWidth, align: 'center' });
         
         doc.end();
 

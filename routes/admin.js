@@ -217,7 +217,7 @@ router.post('/verify-file/:id', isAuthenticated, async (req, res) => {
         }
 
         // Update specific file status
-        if (['ktp', 'ijazah', 'str', 'sertifikat', 'suratPernyataan', 'suratLamaran', 'cv'].includes(fileType)) {
+        if (['ktp', 'ijazah', 'str', 'sertifikat', 'suratPernyataan', 'suratLamaran'].includes(fileType)) {
             applicant[`${fileType}Status`] = status;
             
             // Handle Reject Reason
@@ -246,7 +246,6 @@ router.post('/verify-file/:id', isAuthenticated, async (req, res) => {
         const statuses = [
             applicant.suratLamaranStatus,
             applicant.ktpStatus,
-            applicant.cvStatus,
             applicant.ijazahStatus, 
             applicant.strStatus, 
             applicant.sertifikatStatus,

@@ -5,10 +5,8 @@ import {
   Users, CheckCircle, XCircle, FileText, 
   LogOut, Search, Clock, Menu, LayoutDashboard, Shield, User, Printer, ChevronDown, ChevronRight, X, QrCode, Camera, CameraOff, Trash2, Briefcase, Database
 } from 'lucide-react';
-import QRCode from 'qrcode';
-import { Html5Qrcode } from 'html5-qrcode';
-  import Swal from 'sweetalert2';
-  import JsBarcode from 'jsbarcode';
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
+import Swal from 'sweetalert2';
 
 interface Applicant {
   id: number;
@@ -17,6 +15,8 @@ interface Applicant {
   gender: string;
   birthDate?: string;
   education: string;
+  major?: string;
+  gpa?: number;
   email: string;
   phoneNumber?: string;
   position: string;
@@ -435,7 +435,15 @@ const Dashboard = () => {
     await new Promise(r => setTimeout(r, 50));
 
     try {
-        const scanner = new Html5Qrcode("reader");
+        const scanner = new Html5Qrcode("reader", {
+            formatsToSupport: [ 
+                Html5QrcodeSupportedFormats.QR_CODE, 
+                Html5QrcodeSupportedFormats.CODE_128,
+                Html5QrcodeSupportedFormats.CODE_39,
+                Html5QrcodeSupportedFormats.EAN_13
+            ],
+            verbose: false
+        });
         scannerRef.current = scanner;
         
         await scanner.start(
@@ -540,11 +548,6 @@ const Dashboard = () => {
         verifiedBy = applicant.suratLamaranVerifiedBy;
         rejectReason = applicant.suratLamaranRejectReason;
     }
-    else if (type === 'cv') {
-        verifiedAt = applicant.cvVerifiedAt;
-        verifiedBy = applicant.cvVerifiedBy;
-        rejectReason = applicant.cvRejectReason;
-    }
 
     setRejectReasonInput(rejectReason || '');
 
@@ -592,245 +595,9 @@ const Dashboard = () => {
     }
   };
 
-  const handlePrintCard = async (applicant: Applicant) => {
-    // Generate QR Code
-    let qrCodeDataUrl = '';
-    try {
-      qrCodeDataUrl = await QRCode.toDataURL(applicant.id.toString(), {
-        width: 150,
-        margin: 1,
-        color: {
-          dark: '#000000',
-          light: '#ffffff'
-        }
-      });
-    } catch (e) {
-      console.error("QR Code generation failed", e);
-    }
-
-    // Generate Barcode using hidden canvas ref
-    let barcodeDataUrl = '';
-    if (barcodeCanvasRef.current) {
-        try {
-            const ctx = barcodeCanvasRef.current.getContext('2d');
-            if (ctx) ctx.clearRect(0, 0, barcodeCanvasRef.current.width, barcodeCanvasRef.current.height);
-
-            const jsBarcodeFn = (JsBarcode as any).default || JsBarcode;
-            
-            if (typeof jsBarcodeFn === 'function') {
-                jsBarcodeFn(barcodeCanvasRef.current, applicant.id.toString().padStart(6, '0'), {
-                    format: "CODE128",
-                    displayValue: true,
-                    height: 40,
-                    fontSize: 14,
-                    margin: 0,
-                    width: 2
-                });
-                barcodeDataUrl = barcodeCanvasRef.current.toDataURL("image/png");
-            } else {
-                console.error("JsBarcode function not found", jsBarcodeFn);
-            }
-        } catch (e) {
-            console.error("Ref-based barcode generation failed", e);
-        }
-    } else {
-        console.error("Barcode canvas ref is null");
-    }
-
-    const printWindow = window.open('', '_blank', 'width=800,height=600');
-    if (printWindow) {
-        printWindow.document.write(`
-            <html>
-            <head>
-                <title>Kartu Ujian - ${applicant.name}</title>
-                <style>
-                    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 40px; background: #f0f0f0; }
-                    .card { 
-                        background: white;
-                        border: 1px solid #ddd; 
-                        padding: 30px; 
-                        max-width: 700px; 
-                        margin: 0 auto; 
-                        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-                        position: relative;
-                        overflow: hidden;
-                    }
-                    .header { 
-                        text-align: center; 
-                        border-bottom: 3px double #4c1d95; 
-                        padding-bottom: 20px; 
-                        margin-bottom: 30px; 
-                        position: relative;
-                        display: flex;
-                        flex-direction: column;
-                        align-items: center;
-                        justify-content: center;
-                    }
-                    .header h1 { margin: 0; font-size: 24px; color: #4c1d95; text-transform: uppercase; letter-spacing: 1px; }
-                    .header h2 { margin: 5px 0 0; font-size: 16px; color: #666; }
-                    .barcode-container {
-                        position: absolute;
-                        right: 0;
-                        top: 0;
-                        background: white;
-                        padding: 5px;
-                        display: flex;
-                        flex-direction: column;
-                        align-items: flex-end;
-                        min-width: 150px;
-                        min-height: 50px;
-                        z-index: 10;
-                    }
-                    .barcode-container img, .barcode-container svg {
-                        height: 50px;
-                        width: auto;
-                        display: block;
-                        max-width: 200px;
-                    }
-                    .content { display: flex; gap: 30px; }
-                    .photo-container { 
-                        flex-shrink: 0;
-                        width: 150px; 
-                        height: 200px; 
-                        border: 1px solid #ddd;
-                        padding: 5px;
-                        background: #fff;
-                    }
-                    .photo { 
-                        width: 100%; 
-                        height: 100%; 
-                        object-fit: cover; 
-                        background: #eee; 
-                    }
-                    .details { flex: 1; }
-                    .row { 
-                        margin-bottom: 12px; 
-                        display: flex;
-                        border-bottom: 1px solid #f0f0f0;
-                        padding-bottom: 5px;
-                    }
-                    .label { 
-                        font-weight: 600; 
-                        width: 140px; 
-                        color: #555;
-                    }
-                    .value {
-                        flex: 1;
-                        color: #000;
-                        font-weight: 500;
-                    }
-                    .footer { 
-                        margin-top: 40px; 
-                        text-align: center; 
-                        font-size: 12px; 
-                        color: #888;
-                        border-top: 1px solid #eee;
-                        padding-top: 20px;
-                    }
-                    .watermark {
-                        position: absolute;
-                        top: 50%;
-                        left: 50%;
-                        transform: translate(-50%, -50%) rotate(-45deg);
-                        font-size: 100px;
-                        color: rgba(76, 29, 149, 0.05);
-                        pointer-events: none;
-                        font-weight: bold;
-                        z-index: 0;
-                    }
-                    @media print {
-                        body { padding: 0; background: white; }
-                        .card { box-shadow: none; border: 1px solid #ccc; }
-                        .no-print { display: none; }
-                    }
-                </style>
-            </head>
-            <body>
-                <div class="card">
-                    <div class="watermark">RSUD</div>
-                    <div class="header">
-                        <h1>KARTU PESERTA UJIAN</h1>
-                        <h2>REKRUTMEN PEGAWAI RSUD TIGARAKSA</h2>
-                        <div class="barcode-container">
-                             ${barcodeDataUrl ? `<img src="${barcodeDataUrl}" alt="Barcode" />` : ''}
-                             <svg id="barcode-fallback" style="${barcodeDataUrl ? 'display:none' : ''}"></svg>
-                        </div>
-                    </div>
-                    <div class="content">
-                        <div class="photo-container">
-                            ${applicant.pasFotoPath 
-                                ? `<img src="${applicant.pasFotoPath}" class="photo" alt="Foto Peserta" crossorigin="anonymous" />` 
-                                : '<div class="photo" style="display:flex;align-items:center;justify-content:center;color:#999;font-size:12px;">No Photo</div>'
-                            }
-                        </div>
-                        <div class="details">
-                            <div class="row">
-                                <span class="label">Nomor Peserta</span>
-                                <span class="value">: ${applicant.id.toString().padStart(6, '0')}</span>
-                            </div>
-                            <div class="row">
-                                <span class="label">Nama Lengkap</span>
-                                <span class="value">: ${applicant.name}</span>
-                            </div>
-                            <div class="row">
-                                <span class="label">NIK</span>
-                                <span class="value">: ${applicant.nik}</span>
-                            </div>
-                            <div class="row">
-                                <span class="label">Posisi Dilamar</span>
-                                <span class="value">: ${applicant.position}</span>
-                            </div>
-                            <div class="row">
-                                <span class="label">Lokasi Ujian</span>
-                                <span class="value">: RSUD Tigaraksa (Gedung Utama)</span>
-                            </div>
-                            <div class="row">
-                                <span class="label">Jadwal Ujian</span>
-                                <span class="value">: Menunggu Informasi Selanjutnya</span>
-                            </div>
-                            <div class="row">
-                                <span class="label">Status</span>
-                                <span class="value" style="color:green;font-weight:bold">: TERVERIFIKASI</span>
-                            </div>
-                            <div class="row" style="border-bottom: none; margin-top: 15px;">
-                                <span class="label">Scan QR Code</span>
-                                <div class="value">
-                                    <img src="${qrCodeDataUrl}" alt="QR Code" style="display:block; margin-top:-10px; width: 100px; height: 100px;" />
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="footer">
-                        <p>Kartu ini adalah bukti sah kepesertaan ujian.</p>
-                        <p>Wajib dibawa beserta KTP asli saat pelaksanaan ujian.</p>
-                        <p>Dicetak pada: ${new Date().toLocaleString('id-ID')}</p>
-                    </div>
-                </div>
-                <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.0/dist/JsBarcode.all.min.js"></script>
-                <script>
-                    window.onload = function() {
-                        if (!"${barcodeDataUrl}") {
-                            try {
-                                JsBarcode("#barcode-fallback", "${applicant.id.toString().padStart(6, '0')}", {
-                                    format: "CODE128",
-                                    displayValue: true,
-                                    height: 40,
-                                    fontSize: 14,
-                                    margin: 0,
-                                    width: 2
-                                });
-                            } catch(e) { console.error("Fallback barcode failed", e); }
-                        }
-                        setTimeout(() => {
-                            window.print();
-                        }, 800);
-                    }
-                </script>
-            </body>
-            </html>
-        `);
-        printWindow.document.close();
-    }
+  const handlePrintCard = (applicant: Applicant) => {
+    // Direct download from backend
+    window.location.href = `/api/applicant/${applicant.id}/exam-card?nik=${applicant.nik}`;
   };
 
   return (
@@ -1457,6 +1224,8 @@ const Dashboard = () => {
                           <th className="px-6 py-4">Tanggal Lahir</th>
                           <th className="px-6 py-4">Umur (Saat Daftar)</th>
                           <th className="px-6 py-4">Pendidikan</th>
+                          <th className="px-6 py-4">Jurusan</th>
+                          <th className="px-6 py-4">IPK</th>
                           <th className="px-6 py-4">Posisi</th>
                           <th className="px-6 py-4">Email</th>
                           <th className="px-6 py-4">No HP</th>
@@ -1490,6 +1259,8 @@ const Dashboard = () => {
                                 {calculateAgeAtRegistration(app.birthDate, app.createdAt)}
                               </td>
                               <td className="px-6 py-4 text-gray-600">{app.education}</td>
+                              <td className="px-6 py-4 text-gray-600">{app.major || '-'}</td>
+                              <td className="px-6 py-4 text-gray-600">{app.gpa ? app.gpa.toFixed(2) : '-'}</td>
                               <td className="px-6 py-4">
                                 <span className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium border border-blue-100 whitespace-nowrap">
                                   {app.position}
@@ -1525,13 +1296,12 @@ const Dashboard = () => {
                               <td className="px-6 py-4">
                                 <div className="flex gap-2">
                                   {[
-                                    { key: 'suratLamaran', label: 'Lamaran', status: app.suratLamaranStatus, path: app.suratLamaranPath },
+                                    { key: 'suratLamaran', label: 'Lamaran & CV', status: app.suratLamaranStatus, path: app.suratLamaranPath },
                                     { key: 'ktp', label: 'KTP', status: app.ktpStatus, path: app.ktpPath },
-                                    { key: 'cv', label: 'CV', status: app.cvStatus, path: app.cvPath },
-                                    { key: 'ijazah', label: 'Ijazah', status: app.ijazahStatus, path: app.ijazahPath },
+                                    { key: 'ijazah', label: 'Ijazah & Nilai', status: app.ijazahStatus, path: app.ijazahPath },
                                     { key: 'str', label: 'STR', status: app.strStatus, path: app.strPath },
-                                    { key: 'sertifikat', label: 'Sert', status: app.sertifikatStatus, path: app.sertifikatPath },
                                     { key: 'suratPernyataan', label: 'Pernyataan', status: app.suratPernyataanStatus, path: app.suratPernyataanPath },
+                                    { key: 'sertifikat', label: 'Sert', status: app.sertifikatStatus, path: app.sertifikatPath },
                                   ].map((file) => (
                                     <button
                                       key={file.key}

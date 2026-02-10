@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
-import { Upload, CheckCircle, AlertCircle, FileText, Send, Download } from 'lucide-react';
+import { Upload, CheckCircle, AlertCircle, FileText, Send, Download, Trash2 } from 'lucide-react';
 
 const Home = () => {
   const [formData, setFormData] = useState({
@@ -10,6 +10,8 @@ const Home = () => {
     gender: '',
     birthDate: '',
     education: '',
+    major: '',
+    gpa: '',
     email: '',
     phoneNumber: '',
     position: '',
@@ -18,7 +20,6 @@ const Home = () => {
   const [files, setFiles] = useState<{ [key: string]: File | null }>({
     suratLamaran: null,
     ktp: null,
-    cv: null,
     ijazah: null,
     str: null,
     sertifikat: null,
@@ -55,6 +56,11 @@ const Home = () => {
     if (!formData.gender) newErrors.gender = 'Jenis kelamin wajib dipilih';
     if (!formData.education) newErrors.education = 'Pendidikan terakhir wajib dipilih';
     
+    if (formData.education !== 'SMA/SMK') {
+      if (!formData.major) newErrors.major = 'Jurusan wajib diisi';
+      if (!formData.gpa) newErrors.gpa = 'IPK wajib diisi';
+    }
+    
     if (!formData.email) newErrors.email = 'Email wajib diisi';
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) newErrors.email = 'Format email tidak valid (contoh: nama@email.com)';
     
@@ -67,10 +73,10 @@ const Home = () => {
     if (!files.pasFoto) newErrors.pasFoto = 'Pas foto wajib diupload';
     if (!files.suratLamaran) newErrors.suratLamaran = 'Surat lamaran wajib diupload';
     if (!files.ktp) newErrors.ktp = 'KTP wajib diupload';
-    if (!files.cv) newErrors.cv = 'CV wajib diupload';
+    // CV validation removed as it is merged with Surat Lamaran
     if (!files.ijazah) newErrors.ijazah = 'Ijazah wajib diupload';
     if (!files.str) newErrors.str = 'STR wajib diupload';
-    if (!files.sertifikat) newErrors.sertifikat = 'Sertifikat wajib diupload';
+    // Sertifikat is now optional
     if (!files.suratPernyataan) newErrors.suratPernyataan = 'Surat pernyataan wajib diupload';
 
     setErrors(newErrors);
@@ -117,6 +123,26 @@ const Home = () => {
     }
 
     setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleRemoveFile = (fieldId: string) => {
+    setFiles(prev => ({ ...prev, [fieldId]: null }));
+    
+    // Reset file input value manually
+    const inputId = `file-input-${fieldId}`;
+    const inputElement = document.getElementById(inputId) as HTMLInputElement;
+    if (inputElement) {
+      inputElement.value = '';
+    }
+
+    // Clear error for this field if exists
+    if (errors[fieldId]) {
+      setErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors[fieldId];
+        return newErrors;
+      });
+    }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -166,13 +192,14 @@ const Home = () => {
     data.append('gender', formData.gender);
     data.append('birthDate', formData.birthDate);
     data.append('education', formData.education);
+    data.append('major', formData.major);
+    data.append('gpa', formData.gpa);
     data.append('email', formData.email);
     data.append('phoneNumber', formData.phoneNumber);
     data.append('position', formData.position);
     
     if (files.suratLamaran) data.append('suratLamaran', files.suratLamaran);
     if (files.ktp) data.append('ktp', files.ktp);
-    if (files.cv) data.append('cv', files.cv);
     if (files.ijazah) data.append('ijazah', files.ijazah);
     if (files.str) data.append('str', files.str);
     if (files.sertifikat) data.append('sertifikat', files.sertifikat);
@@ -362,6 +389,35 @@ const Home = () => {
                   </select>
                   {errors.education && <p className="text-red-500 text-xs mt-1">{errors.education}</p>}
                 </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Jurusan</label>
+                  <input 
+                    type="text" 
+                    name="major" 
+                    required={formData.education !== 'SMA/SMK'}
+                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-tangerang-purple focus:border-transparent transition ${errors.major ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
+                    placeholder="Contoh: Teknik Informatika"
+                    value={formData.major}
+                    onChange={handleInputChange}
+                  />
+                  {errors.major && <p className="text-red-500 text-xs mt-1">{errors.major}</p>}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">IPK Terakhir</label>
+                  <input 
+                    type="number" 
+                    name="gpa" 
+                    required={formData.education !== 'SMA/SMK'}
+                    step="0.01"
+                    min="0"
+                    max="4.00"
+                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-tangerang-purple focus:border-transparent transition ${errors.gpa ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
+                    placeholder="Contoh: 3.50"
+                    value={formData.gpa}
+                    onChange={handleInputChange}
+                  />
+                  {errors.gpa && <p className="text-red-500 text-xs mt-1">{errors.gpa}</p>}
+                </div>
               </div>
 
               <div>
@@ -403,7 +459,7 @@ const Home = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Pas Foto 3x4 Terbaru</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Pas Foto 3x4 Terbaru *</label>
                 <div className={`relative border-2 border-dashed rounded-lg p-6 hover:bg-gray-50 transition text-center group ${errors.pasFoto ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}>
                   <input 
                     type="file" 
@@ -474,14 +530,15 @@ const Home = () => {
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-2">
                   <h4 className="font-semibold text-blue-800 mb-1 flex items-center">
                     <Download className="w-4 h-4 mr-2" />
-                    Template Surat Pernyataan
+                    Template Surat
                   </h4>
                   <p className="text-sm text-blue-600 mb-3">
-                    Silakan unduh template surat pernyataan, isi, tandatangani di atas materai, lalu scan dan upload kembali.
+                    Silakan unduh template surat lamaran dan surat pernyataan disini, isi, tandatangani di atas materai, lalu scan dan upload kembali sesuai jenisnya.
                   </p>
                   <a 
-                    href="/template-surat-pernyataan.doc" 
-                    download="Template_Surat_Pernyataan_RSUD_Tigaraksa.doc"
+                    href="https://drive.google.com/drive/folders/1hYt7qbzSbljkJOHfnNWZ1_EGpqwQUwxQ?usp=sharing" 
+                    target="_blank"
+                    rel="noopener noreferrer"
                     className="inline-flex items-center px-4 py-2 bg-white border border-blue-300 rounded-md text-sm font-medium text-blue-700 hover:bg-blue-50 transition"
                   >
                     <Download className="w-4 h-4 mr-2" />
@@ -490,13 +547,12 @@ const Home = () => {
                 </div>
 
                 {[
-                  { id: 'suratLamaran', label: 'Surat Lamaran', desc: 'Surat Lamaran Kerja (Maks 1MB)' },
-                  { id: 'ktp', label: 'KTP', desc: 'Kartu Tanda Penduduk (Maks 1MB)' },
-                  { id: 'cv', label: 'CV', desc: 'Curriculum Vitae (Maks 1MB)' },
-                  { id: 'ijazah', label: 'Ijazah Terakhir', desc: 'Scan Asli (Maks 1MB)' },
-                  { id: 'str', label: 'STR', desc: 'Surat Tanda Registrasi (Maks 1MB)' },
-                  { id: 'sertifikat', label: 'Sertifikat', desc: 'Sertifikat Keahlian (Maks 2MB)' },
-                  { id: 'suratPernyataan', label: 'Surat Pernyataan', desc: 'Scan Asli Bermaterai (Maks 1MB)' }
+                  { id: 'suratLamaran', label: 'Surat Lamaran dan CV *', desc: 'Surat Lamaran Kerja & CV (Maks 1MB)', required: true },
+                  { id: 'ktp', label: 'KTP *', desc: 'Kartu Tanda Penduduk (Maks 1MB)', required: true },
+                  { id: 'ijazah', label: 'Ijazah dan Nilai Terakhir *', desc: 'Scan Asli (Maks 1MB)', required: true },
+                  { id: 'str', label: 'STR *', desc: 'Surat Tanda Registrasi (Maks 1MB)', required: true },
+                  { id: 'suratPernyataan', label: 'Surat Pernyataan *', desc: 'Scan Asli Bermaterai (Maks 1MB)', required: true },
+                  { id: 'sertifikat', label: 'Sertifikat', desc: 'Sertifikat Keahlian (Maks 2MB) - Opsional', required: false },
                 ].map((field) => (
                   <div key={field.id} className={`relative border border-dashed rounded-lg p-4 hover:bg-gray-50 transition group ${errors[field.id] ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}>
                     <div className="flex items-center justify-between">
@@ -509,17 +565,30 @@ const Home = () => {
                           <p className={`text-xs ${errors[field.id] ? 'text-red-500' : 'text-gray-500'}`}>{errors[field.id] || files[field.id]?.name || field.desc}</p>
                         </div>
                       </div>
-                      <label className={`cursor-pointer bg-white border shadow-sm px-3 py-1.5 rounded-md text-sm font-medium transition ${errors[field.id] ? 'text-red-600 border-red-200 hover:text-red-700 hover:border-red-300' : 'text-gray-600 border-gray-200 hover:text-tangerang-purple hover:border-tangerang-purple'}`}>
-                        Browse
-                        <input 
-                          type="file" 
-                          name={field.id}
-                          required
-                          className="hidden" 
-                          onChange={handleFileChange}
-                          accept=".pdf,.jpg,.jpeg,.png"
-                        />
-                      </label>
+                      <div className="flex items-center gap-2">
+                        {files[field.id] && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveFile(field.id)}
+                            className="p-1.5 text-red-500 hover:bg-red-50 rounded-md transition border border-red-200"
+                            title="Hapus file"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                        <label className={`cursor-pointer bg-white border shadow-sm px-3 py-1.5 rounded-md text-sm font-medium transition ${errors[field.id] ? 'text-red-600 border-red-200 hover:text-red-700 hover:border-red-300' : 'text-gray-600 border-gray-200 hover:text-tangerang-purple hover:border-tangerang-purple'}`}>
+                          Browse
+                          <input 
+                            id={`file-input-${field.id}`}
+                            type="file" 
+                            name={field.id}
+                            required={field.required}
+                            className="hidden" 
+                            onChange={handleFileChange}
+                            accept=".pdf,.jpg,.jpeg,.png"
+                          />
+                        </label>
+                      </div>
                     </div>
                   </div>
                 ))}
