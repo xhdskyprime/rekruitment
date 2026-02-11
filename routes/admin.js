@@ -9,6 +9,7 @@ const fs = require('fs');
 const path = require('path');
 const bcrypt = require('bcryptjs');
 const Position = require('../models/Position');
+const Session = require('../models/Session');
 const { Op } = require('sequelize');
 
 // Authentication Middleware
@@ -145,7 +146,8 @@ router.get('/', isAuthenticated, async (req, res) => {
             where,
             limit,
             offset,
-            order: [['createdAt', 'DESC']]
+            order: [['createdAt', 'DESC']],
+            include: [{ model: Session, attributes: ['id', 'name', 'date', 'startTime', 'endTime', 'location'] }]
         });
 
         // Fetch global stats (efficient counts with parallel execution)
@@ -235,12 +237,17 @@ router.post('/reset-attendance', isAuthenticated, async (req, res) => {
 router.post('/verify-file/:id', isAuthenticated, async (req, res) => {
     console.log(`[Verify] Request received for ID: ${req.params.id}, Body:`, req.body);
     try {
-        const { fileType, status, rejectReason } = req.body; // fileType: 'ktp', status: 'valid' | 'invalid'
+        const { fileType, status, rejectReason, sessionId } = req.body; // fileType: 'ktp', status: 'valid' | 'invalid'
         const applicant = await Applicant.findByPk(req.params.id);
         
         if (!applicant) {
             console.error(`[Verify] Applicant not found: ${req.params.id}`);
             return res.status(404).json({ error: 'Applicant not found' });
+        }
+
+        // If sessionId is provided, update it
+        if (sessionId !== undefined) {
+            applicant.sessionId = sessionId || null;
         }
 
         // Update specific file status
@@ -433,6 +440,23 @@ router.post('/positions', isSuperAdmin, async (req, res) => {
     }
 });
 
+router.put('/positions/:id', isSuperAdmin, async (req, res) => {
+    try {
+        const { name } = req.body;
+        const pos = await Position.findByPk(req.params.id);
+        if (!pos) return res.status(404).json({ error: 'Posisi tidak ditemukan' });
+        if (!name || !name.trim()) return res.status(400).json({ error: 'Nama posisi wajib diisi' });
+        pos.name = name.trim();
+        await pos.save();
+        res.json({ success: true, position: pos });
+    } catch (error) {
+        if (error.name === 'SequelizeUniqueConstraintError') {
+            return res.status(400).json({ error: 'Posisi sudah ada' });
+        }
+        res.status(500).json({ error: 'Server Error' });
+    }
+});
+
 router.delete('/positions/:id', isSuperAdmin, async (req, res) => {
     try {
         const pos = await Position.findByPk(req.params.id);
@@ -441,6 +465,97 @@ router.delete('/positions/:id', isSuperAdmin, async (req, res) => {
         res.json({ success: true });
     } catch (error) {
         res.status(500).json({ error: 'Server Error' });
+    }
+});
+
+// Master Sessions (Superadmin Only)
+router.get('/sessions', isAuthenticated, async (req, res) => {
+    try {
+        const sessions = await Session.findAll({ order: [['date', 'ASC'], ['startTime', 'ASC']] });
+        res.json({ sessions });
+    } catch (error) {
+        res.status(500).json({ error: 'Server Error' });
+    }
+});
+
+router.post('/sessions', isSuperAdmin, async (req, res) => {
+    try {
+        const { name, date, startTime, endTime, location, capacity } = req.body;
+        if (!name || !date || !startTime || !endTime || !location) {
+            return res.status(400).json({ error: 'Semua field wajib diisi' });
+        }
+
+        let normalizedDate = date;
+        const parsed = new Date(date);
+        if (!isNaN(parsed.getTime())) {
+            normalizedDate = parsed.toISOString().slice(0, 10);
+        }
+
+        const session = await Session.create({ 
+            name: name.trim(), 
+            date: normalizedDate, 
+            startTime, 
+            endTime, 
+            location: location.trim(), 
+            capacity: parseInt(capacity) || 0 
+        });
+        res.status(201).json({ success: true, session });
+    } catch (error) {
+        console.error('Create session error:', error);
+        res.status(500).json({ error: error.message || 'Server Error' });
+    }
+});
+
+router.put('/sessions/:id', isSuperAdmin, async (req, res) => {
+    try {
+        const { name, date, startTime, endTime, location, capacity } = req.body;
+        const session = await Session.findByPk(req.params.id);
+        if (!session) return res.status(404).json({ error: 'Sesi tidak ditemukan' });
+
+        await session.update({
+            name: name?.trim() || session.name,
+            date: date || session.date,
+            startTime: startTime || session.startTime,
+            endTime: endTime || session.endTime,
+            location: location?.trim() || session.location,
+            capacity: capacity !== undefined ? parseInt(capacity) : session.capacity
+        });
+
+        res.json({ success: true, session });
+    } catch (error) {
+        res.status(500).json({ error: 'Server Error' });
+    }
+});
+
+router.delete('/sessions/:id', isSuperAdmin, async (req, res) => {
+    try {
+        const session = await Session.findByPk(req.params.id);
+        if (!session) return res.status(404).json({ error: 'Sesi tidak ditemukan' });
+        await session.destroy();
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: 'Server Error' });
+    }
+});
+
+// Assign Session to Applicant
+router.post('/applicants/:id/session', isAuthenticated, async (req, res) => {
+    try {
+        const { sessionId } = req.body;
+        const applicant = await Applicant.findByPk(req.params.id);
+        if (!applicant) return res.status(404).json({ error: 'Applicant tidak ditemukan' });
+        
+        applicant.sessionId = sessionId || null;
+        await applicant.save();
+        
+        const updated = await Applicant.findByPk(applicant.id, {
+            include: [{ model: Session, attributes: ['id', 'name', 'date', 'startTime', 'endTime', 'location'] }]
+        });
+        
+        res.json({ success: true, applicant: updated });
+    } catch (error) {
+        console.error('Assign session error:', error);
+        res.status(500).json({ error: error.message || 'Server Error' });
     }
 });
 
@@ -522,6 +637,41 @@ router.put('/users/:id/role', isSuperAdmin, async (req, res) => {
         res.json({ success: true, message: 'Role updated', admin: { id: admin.id, username: admin.username, role: admin.role } });
     } catch (error) {
         console.error('Update role error:', error);
+        res.status(500).json({ error: 'Server Error' });
+    }
+});
+
+// Update User (username and role) - Superadmin Only
+router.put('/users/:id', isSuperAdmin, async (req, res) => {
+    const { username, role, password } = req.body;
+    try {
+        const admin = await Admin.findByPk(req.params.id);
+        if (!admin) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        if (username && username.trim() !== admin.username) {
+            const existing = await Admin.findOne({ where: { username: username.trim() } });
+            if (existing) {
+                return res.status(400).json({ error: 'Username already exists' });
+            }
+            admin.username = username.trim();
+        }
+        if (role) {
+            if (!['superadmin', 'verificator'].includes(role)) {
+                return res.status(400).json({ error: 'Invalid role' });
+            }
+            if (parseInt(req.params.id) === req.session.adminId && role !== admin.role) {
+                return res.status(400).json({ error: 'Cannot change your own role' });
+            }
+            admin.role = role;
+        }
+        if (typeof password === 'string' && password.trim().length > 0) {
+            const hashedPassword = await bcrypt.hash(password.trim(), 10);
+            admin.password = hashedPassword;
+        }
+        await admin.save();
+        res.json({ success: true, admin: { id: admin.id, username: admin.username, role: admin.role } });
+    } catch (error) {
         res.status(500).json({ error: 'Server Error' });
     }
 });

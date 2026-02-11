@@ -2,8 +2,8 @@ import React, { useEffect, useState, useRef } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { 
-  Users, CheckCircle, XCircle, FileText, 
-  LogOut, Search, Clock, Menu, LayoutDashboard, Shield, User, Printer, ChevronDown, ChevronRight, X, QrCode, Camera, CameraOff, Trash2, Briefcase, Database, Settings
+  Users, CheckCircle, XCircle, FileText, Pencil, 
+  LogOut, Search, Clock, Menu, LayoutDashboard, Shield, User, Printer, ChevronDown, ChevronRight, ChevronLeft, X, QrCode, Camera, CameraOff, Trash2, Briefcase, Database, Settings
 } from 'lucide-react';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import Swal from 'sweetalert2';
@@ -15,7 +15,9 @@ interface Applicant {
   nik: string;
   gender: string;
   birthDate?: string;
+  birthPlace?: string;
   education: string;
+  institution?: string;
   major?: string;
   gpa?: number;
   email: string;
@@ -62,6 +64,15 @@ interface Applicant {
   createdAt: string;
   attendanceStatus?: 'absent' | 'present';
   attendanceTime?: string;
+  sessionId?: number;
+  Session?: {
+    id: number;
+    name: string;
+    date: string;
+    startTime: string;
+    endTime: string;
+    location: string;
+  };
 }
 
 interface AdminUser {
@@ -74,6 +85,17 @@ interface AdminUser {
 interface PositionItem {
   id: number;
   name: string;
+  createdAt: string;
+}
+
+interface SessionItem {
+  id: number;
+  name: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  location: string;
+  capacity: number;
   createdAt: string;
 }
 
@@ -109,10 +131,16 @@ const Dashboard = () => {
   const [selectedApplicant, setSelectedApplicant] = useState<Applicant | null>(null);
   const [previewFile, setPreviewFile] = useState<{ type: string, label: string, url: string, status: string, verifiedAt?: string, verifiedBy?: string, rejectReason?: string } | null>(null);
   const [rejectReasonInput, setRejectReasonInput] = useState('');
-  const [activeTab, setActiveTab] = useState<'applicants' | 'verification' | 'users' | 'attendance' | 'positions' | 'settings'>('applicants');
+  const [selectedSessionId, setSelectedSessionId] = useState<number | ''>('');
+  const [activeTab, setActiveTab] = useState<'applicants' | 'verification' | 'users' | 'attendance' | 'positions' | 'sessions' | 'schedule' | 'settings'>('applicants');
   const [isSidebarOpen, setSidebarOpen] = useState(true);
   const [isMasterMenuOpen, setMasterMenuOpen] = useState(true);
   const [isStartingCamera, setIsStartingCamera] = useState(false);
+  const [scheduleFilterSessionId, setScheduleFilterSessionId] = useState<number | '' | 'UNASSIGNED'>('');
+  const [capacityPrompt, setCapacityPrompt] = useState<{ open: boolean, applicantId?: number, sessionId?: number, sessionName?: string, assigned?: number, capacity?: number }>({ open: false });
+  const [scheduleCarouselIndex, setScheduleCarouselIndex] = useState(0);
+  const [editingPosition, setEditingPosition] = useState<PositionItem | null>(null);
+  const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
   
   // Attendance State
   const [scanInput, setScanInput] = useState('');
@@ -126,6 +154,18 @@ const Dashboard = () => {
   const [newUser, setNewUser] = useState({ username: '', password: '', role: 'verificator' });
   const [positions, setPositions] = useState<PositionItem[]>([]);
   const [newPosition, setNewPosition] = useState<string>('');
+
+  // Session Master State
+  const [sessions, setSessions] = useState<SessionItem[]>([]);
+  const [newSession, setNewSession] = useState({ 
+    name: '', 
+    date: '', 
+    startTime: '', 
+    endTime: '', 
+    location: '', 
+    capacity: 0 
+  });
+  const [editingSession, setEditingSession] = useState<SessionItem | null>(null);
 
   const navigate = useNavigate();
   const { refreshConfig } = useConfig();
@@ -152,7 +192,13 @@ const Dashboard = () => {
 
   useEffect(() => {
     setPage(1);
-    setFilterStatus('');
+    setFilterStatus(activeTab === 'schedule' ? 'verified' : '');
+    if (activeTab === 'schedule' && sessions.length === 0) {
+      fetchSessions();
+    }
+    if (activeTab === 'schedule') {
+      setScheduleCarouselIndex(0);
+    }
   }, [activeTab]);
 
   // Debounce search term
@@ -210,6 +256,7 @@ const Dashboard = () => {
       if (authRes.data.role === 'superadmin') {
           fetchUsers();
           fetchPositions();
+          fetchSessions();
       }
       fetchSettings();
     } catch (error: any) {
@@ -235,11 +282,18 @@ const Dashboard = () => {
     try {
       const name = newPosition.trim();
       if (!name) return;
-      await axios.post('/admin/positions', { name }, { withCredentials: true });
+      if (editingPosition) {
+        await axios.put(`/admin/positions/${editingPosition.id}`, { name }, { withCredentials: true });
+        setEditingPosition(null);
+        Swal.fire('Berhasil', 'Posisi berhasil diperbarui', 'success');
+      } else {
+        await axios.post('/admin/positions', { name }, { withCredentials: true });
+        Swal.fire('Berhasil', 'Posisi berhasil ditambah', 'success');
+      }
       setNewPosition('');
       fetchPositions();
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Gagal menambah posisi');
+      Swal.fire('Gagal', error.response?.data?.error || 'Gagal menyimpan posisi', 'error');
     }
   };
 
@@ -251,6 +305,16 @@ const Dashboard = () => {
     } catch (error: any) {
       alert(error.response?.data?.error || 'Gagal menghapus posisi');
     }
+  };
+
+  const startEditPosition = (pos: PositionItem) => {
+    setEditingPosition(pos);
+    setNewPosition(pos.name);
+  };
+
+  const cancelEditPosition = () => {
+    setEditingPosition(null);
+    setNewPosition('');
   };
 
   const fetchUsers = async () => {
@@ -271,6 +335,34 @@ const Dashboard = () => {
         alert('User berhasil dibuat');
     } catch (error: any) {
         alert(error.response?.data?.error || 'Gagal membuat user');
+    }
+  };
+
+  const startEditUser = (user: AdminUser) => {
+    setEditingUser(user);
+    setNewUser({ username: user.username, password: '', role: user.role });
+  };
+
+  const cancelEditUser = () => {
+    setEditingUser(null);
+    setNewUser({ username: '', password: '', role: 'verificator' });
+  };
+
+  const handleUpdateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingUser) return;
+    try {
+      const payload: any = { username: newUser.username, role: newUser.role };
+      if (newUser.password && newUser.password.trim().length > 0) {
+        payload.password = newUser.password.trim();
+      }
+      await axios.put(`/admin/users/${editingUser.id}`, payload, { withCredentials: true });
+      setEditingUser(null);
+      setNewUser({ username: '', password: '', role: 'verificator' });
+      fetchUsers();
+      Swal.fire('Berhasil', 'User berhasil diperbarui', 'success');
+    } catch (error: any) {
+      Swal.fire('Gagal', error.response?.data?.error || 'Gagal memperbarui user', 'error');
     }
   };
 
@@ -306,6 +398,61 @@ const Dashboard = () => {
       }
     } catch (error) {
       console.error('Fetch settings error', error);
+    }
+  };
+
+  const fetchSessions = async () => {
+    try {
+      const res = await axios.get('/admin/sessions', { withCredentials: true });
+      setSessions(res.data.sessions || []);
+    } catch (error) {
+      console.error('Failed to fetch sessions', error);
+    }
+  };
+
+  const handleAddSession = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await axios.post('/admin/sessions', newSession, { withCredentials: true });
+      setNewSession({ name: '', date: '', startTime: '', endTime: '', location: '', capacity: 0 });
+      fetchSessions();
+      Swal.fire('Berhasil', 'Sesi berhasil ditambah', 'success');
+    } catch (error: any) {
+      Swal.fire('Gagal', error.response?.data?.error || 'Gagal menambah sesi', 'error');
+    }
+  };
+
+  const handleUpdateSession = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingSession) return;
+    try {
+      await axios.put(`/admin/sessions/${editingSession.id}`, editingSession, { withCredentials: true });
+      setEditingSession(null);
+      fetchSessions();
+      Swal.fire('Berhasil', 'Sesi berhasil diperbarui', 'success');
+    } catch (error: any) {
+      Swal.fire('Gagal', error.response?.data?.error || 'Gagal memperbarui sesi', 'error');
+    }
+  };
+
+  const handleDeleteSession = async (id: number) => {
+    const result = await Swal.fire({
+      title: 'Yakin hapus sesi ini?',
+      text: "Data yang terkait mungkin akan terpengaruh",
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Ya, Hapus',
+      cancelButtonText: 'Batal'
+    });
+
+    if (result.isConfirmed) {
+      try {
+        await axios.delete(`/admin/sessions/${id}`, { withCredentials: true });
+        fetchSessions();
+        Swal.fire('Dihapus', 'Sesi berhasil dihapus', 'success');
+      } catch (error: any) {
+        Swal.fire('Gagal', error.response?.data?.error || 'Gagal menghapus sesi', 'error');
+      }
     }
   };
 
@@ -553,6 +700,7 @@ const Dashboard = () => {
 
   const openPreview = (applicant: Applicant, type: string, label: string, path: string, status: string) => {
     setSelectedApplicant(applicant);
+    setSelectedSessionId(applicant.sessionId || '');
     
     let verifiedAt, verifiedBy, rejectReason;
     // Map type to property names
@@ -615,7 +763,12 @@ const Dashboard = () => {
     try {
       await axios.post(
         `/admin/verify-file/${selectedApplicant.id}`, 
-        { fileType: previewFile.type, status, rejectReason },
+        { 
+          fileType: previewFile.type, 
+          status, 
+          rejectReason,
+          sessionId: selectedSessionId || null
+        },
         { withCredentials: true }
       );
       
@@ -634,8 +787,8 @@ const Dashboard = () => {
   };
 
   const handlePrintCard = (applicant: Applicant) => {
-    // Direct download from backend
-    window.location.href = `/api/applicant/${applicant.id}/exam-card?nik=${applicant.nik}`;
+    // Open in new tab instead of window.location.href
+    window.open(`/api/applicant/${applicant.id}/exam-card?nik=${applicant.nik}`, '_blank');
   };
 
   return (
@@ -676,6 +829,19 @@ const Dashboard = () => {
           >
             <FileText className={`w-5 h-5 flex-shrink-0 ${activeTab === 'verification' ? 'text-tangerang-purple' : 'text-gray-400 group-hover:text-gray-600'}`} />
             <span className={`ml-3 whitespace-nowrap ${!isSidebarOpen && 'hidden md:hidden'}`}>Verifikasi Berkas</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('schedule')}
+            className={`w-full flex items-center px-3 py-3 rounded-xl transition-all duration-200 group ${
+              activeTab === 'schedule'
+                ? 'bg-purple-50 text-tangerang-purple font-medium shadow-sm'
+                : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
+            } ${!isSidebarOpen && 'justify-center'}`}
+            title="Atur Jadwal"
+          >
+            <Clock className={`w-5 h-5 flex-shrink-0 ${activeTab === 'schedule' ? 'text-tangerang-purple' : 'text-gray-400 group-hover:text-gray-600'}`} />
+            <span className={`ml-3 whitespace-nowrap ${!isSidebarOpen && 'hidden md:hidden'}`}>Atur Jadwal</span>
           </button>
 
           <button
@@ -723,6 +889,20 @@ const Dashboard = () => {
                       </button>
 
                       <button
+                        onClick={() => setActiveTab('sessions')}
+                        className={`w-full flex items-center px-3 py-2 rounded-lg transition-all duration-200 group text-sm ${
+                          activeTab === 'sessions'
+                            ? 'bg-purple-50 text-tangerang-purple font-medium'
+                            : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
+                        }`}
+                      >
+                         <div className="w-5 flex justify-center mr-2">
+                            <Clock className={`w-4 h-4 flex-shrink-0 ${activeTab === 'sessions' ? 'text-tangerang-purple' : 'text-gray-400'}`} />
+                         </div>
+                        Master Sesi
+                      </button>
+
+                      <button
                         onClick={() => setActiveTab('users')}
                         className={`w-full flex items-center px-3 py-2 rounded-lg transition-all duration-200 group text-sm ${
                           activeTab === 'users'
@@ -751,6 +931,30 @@ const Dashboard = () => {
                     title="Posisi Dilamar"
                   >
                     <Briefcase className={`w-5 h-5 flex-shrink-0 ${activeTab === 'positions' ? 'text-tangerang-purple' : 'text-gray-400 group-hover:text-gray-600'}`} />
+                  </button>
+
+                  <button
+                    onClick={() => setActiveTab('sessions')}
+                    className={`w-full flex items-center justify-center px-3 py-3 rounded-xl transition-all duration-200 group ${
+                      activeTab === 'sessions'
+                        ? 'bg-purple-50 text-tangerang-purple shadow-sm'
+                        : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
+                    }`}
+                    title="Master Sesi"
+                  >
+                    <Clock className={`w-5 h-5 flex-shrink-0 ${activeTab === 'sessions' ? 'text-tangerang-purple' : 'text-gray-400 group-hover:text-gray-600'}`} />
+                  </button>
+
+                  <button
+                    onClick={() => setActiveTab('users')}
+                    className={`w-full flex items-center justify-center px-3 py-3 rounded-xl transition-all duration-200 group ${
+                      activeTab === 'users'
+                        ? 'bg-purple-50 text-tangerang-purple shadow-sm'
+                        : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
+                    }`}
+                    title="Manajemen User"
+                  >
+                    <Users className={`w-5 h-5 flex-shrink-0 ${activeTab === 'users' ? 'text-tangerang-purple' : 'text-gray-400 group-hover:text-gray-600'}`} />
                   </button>
 
                   <button
@@ -807,8 +1011,10 @@ const Dashboard = () => {
               {activeTab === 'applicants' ? 'Data Pelamar' : 
                activeTab === 'verification' ? 'Verifikasi Berkas' : 
                activeTab === 'attendance' ? 'Absensi Ujian' : 
-               activeTab === 'positions' ? 'Master Posisi Dilamar' : 
-               activeTab === 'settings' ? 'Pengaturan Website' : 'Manajemen User'}
+               activeTab === 'positions' ? 'Master Posisi' : 
+               activeTab === 'sessions' ? 'Master Sesi' : 
+               activeTab === 'schedule' ? 'Atur Jadwal' :
+               activeTab === 'users' ? 'Manajemen User' : 'Pengaturan Website'}
             </h2>
           </div>
 
@@ -1034,13 +1240,166 @@ const Dashboard = () => {
             )}
 
             {/* User/Positions Management Section */}
-            {activeTab === 'users' || activeTab === 'positions' ? (
+            {activeTab === 'users' || activeTab === 'positions' || activeTab === 'sessions' ? (
               <div className="space-y-6 animate-in fade-in duration-500">
+                {activeTab === 'sessions' && (
+                  <div className="bg-white p-6 rounded-2xl shadow-lg border border-gray-100">
+                    <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center">
+                      <Clock className="w-5 h-5 mr-2 text-tangerang-purple" />
+                      {editingSession ? 'Edit Sesi Ujian' : 'Master Sesi Ujian'}
+                    </h2>
+                    
+                    <form onSubmit={editingSession ? handleUpdateSession : handleAddSession} className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8 bg-gray-50 p-6 rounded-xl border border-gray-100">
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Nama Sesi</label>
+                        <input
+                          type="text"
+                          required
+                          value={editingSession ? editingSession.name : newSession.name}
+                          onChange={e => editingSession ? setEditingSession({...editingSession, name: e.target.value}) : setNewSession({...newSession, name: e.target.value})}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-tangerang-purple outline-none"
+                          placeholder="Contoh: Sesi 1 - Pagi"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Tanggal</label>
+                        <input
+                          type="date"
+                          required
+                          value={editingSession ? editingSession.date : newSession.date}
+                          onChange={e => editingSession ? setEditingSession({...editingSession, date: e.target.value}) : setNewSession({...newSession, date: e.target.value})}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-tangerang-purple outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Jam Mulai</label>
+                        <input
+                          type="time"
+                          required
+                          value={editingSession ? editingSession.startTime : newSession.startTime}
+                          onChange={e => editingSession ? setEditingSession({...editingSession, startTime: e.target.value}) : setNewSession({...newSession, startTime: e.target.value})}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-tangerang-purple outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Jam Selesai</label>
+                        <input
+                          type="time"
+                          required
+                          value={editingSession ? editingSession.endTime : newSession.endTime}
+                          onChange={e => editingSession ? setEditingSession({...editingSession, endTime: e.target.value}) : setNewSession({...newSession, endTime: e.target.value})}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-tangerang-purple outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Kapasitas (Opsional)</label>
+                        <input
+                          type="number"
+                          value={editingSession ? editingSession.capacity : newSession.capacity}
+                          onChange={e => editingSession ? setEditingSession({...editingSession, capacity: parseInt(e.target.value)}) : setNewSession({...newSession, capacity: parseInt(e.target.value)})}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-tangerang-purple outline-none"
+                          placeholder="0 = Tanpa batas"
+                        />
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Lokasi</label>
+                        <input
+                          type="text"
+                          required
+                          value={editingSession ? editingSession.location : newSession.location}
+                          onChange={e => editingSession ? setEditingSession({...editingSession, location: e.target.value}) : setNewSession({...newSession, location: e.target.value})}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-tangerang-purple outline-none"
+                          placeholder="Contoh: Ruang Aula Lt. 2"
+                        />
+                      </div>
+                      <div className="flex gap-2 items-end">
+                        <button
+                          type="submit"
+                          className="flex-1 px-6 py-2 bg-tangerang-purple text-white rounded-lg hover:bg-tangerang-dark transition font-medium shadow-md"
+                        >
+                          {editingSession ? 'Simpan Perubahan' : 'Tambah Sesi'}
+                        </button>
+                        {editingSession && (
+                          <button
+                            type="button"
+                            onClick={() => setEditingSession(null)}
+                            className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition font-medium"
+                          >
+                            Batal
+                          </button>
+                        )}
+                      </div>
+                    </form>
+
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left">
+                        <thead className="bg-gray-50 text-gray-600 text-xs uppercase font-semibold">
+                          <tr>
+                            <th className="px-6 py-4">Nama Sesi</th>
+                            <th className="px-6 py-4">Waktu & Tempat</th>
+                            <th className="px-6 py-4">Kapasitas</th>
+                            <th className="px-6 py-4">Aksi</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {sessions.map(session => (
+                            <tr key={session.id} className="hover:bg-gray-50 transition">
+                              <td className="px-6 py-4">
+                                <div className="font-bold text-gray-900">{session.name}</div>
+                              </td>
+                              <td className="px-6 py-4">
+                                <div className="flex items-center text-sm text-gray-700 mb-1">
+                                  <Clock className="w-3.5 h-3.5 mr-1.5 text-tangerang-purple" />
+                                  {new Date(session.date).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                                </div>
+                                <div className="text-sm text-gray-600">
+                                  {session.startTime} - {session.endTime} WIB
+                                </div>
+                                <div className="text-sm text-gray-500 italic mt-1">
+                                  {session.location}
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 text-sm font-medium text-gray-700">
+                                {session.capacity > 0 ? `${session.capacity} Peserta` : 'Tidak Terbatas'}
+                              </td>
+                              <td className="px-6 py-4">
+                                <div className="flex gap-2">
+                                  <button
+                                    onClick={() => setEditingSession(session)}
+                                    className="text-tangerang-purple hover:text-tangerang-dark p-1.5 rounded-full hover:bg-purple-50 transition"
+                                    title="Edit Sesi"
+                                  >
+                                    <Pencil className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteSession(session.id)}
+                                    className="text-red-500 hover:text-red-700 p-1.5 rounded-full hover:bg-red-50 transition"
+                                    title="Hapus Sesi"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                          {sessions.length === 0 && (
+                            <tr>
+                              <td colSpan={4} className="px-6 py-12 text-center text-gray-500">
+                                <Clock className="w-12 h-12 mx-auto mb-3 text-gray-200" />
+                                Belum ada sesi ujian yang dibuat.
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
                 {activeTab === 'positions' && (
                   <div className="bg-white p-6 rounded-2xl shadow-lg border border-gray-100">
                     <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center">
                       <Shield className="w-5 h-5 mr-2 text-tangerang-purple" />
-                      Master Posisi Dilamar
+                      {editingPosition ? 'Edit Posisi Dilamar' : 'Master Posisi Dilamar'}
                     </h2>
                     <form onSubmit={handleAddPosition} className="flex flex-col md:flex-row gap-4 items-end mb-6">
                       <div className="flex-1 w-full">
@@ -1054,12 +1413,23 @@ const Dashboard = () => {
                           placeholder="Contoh: Perawat, Bidan, Apoteker"
                         />
                       </div>
-                      <button
-                        type="submit"
-                        className="px-6 py-2 bg-tangerang-purple text-white rounded-lg hover:bg-tangerang-dark transition font-medium shadow-md hover:shadow-lg"
-                      >
-                        Tambah Posisi
-                      </button>
+                      <div className="flex gap-2">
+                        <button
+                          type="submit"
+                          className="px-6 py-2 bg-tangerang-purple text-white rounded-lg hover:bg-tangerang-dark transition font-medium shadow-md hover:shadow-lg"
+                        >
+                          {editingPosition ? 'Simpan Perubahan' : 'Tambah Posisi'}
+                        </button>
+                        {editingPosition && (
+                          <button
+                            type="button"
+                            onClick={cancelEditPosition}
+                            className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition font-medium"
+                          >
+                            Batal
+                          </button>
+                        )}
+                      </div>
                     </form>
 
                     <div className="overflow-x-auto">
@@ -1080,13 +1450,22 @@ const Dashboard = () => {
                               </td>
                               <td className="px-6 py-4">
                                 {currentUserRole === 'superadmin' && (
-                                <button
-                                  onClick={() => handleDeletePosition(pos.id)}
-                                  className="text-red-500 hover:text-red-700 p-1.5 rounded-full hover:bg-red-50 transition"
-                                  title="Hapus Posisi"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    onClick={() => startEditPosition(pos)}
+                                    className="text-gray-700 hover:text-tangerang-purple p-1.5 rounded-full hover:bg-purple-50 transition"
+                                    title="Edit Posisi"
+                                  >
+                                    <Pencil className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeletePosition(pos.id)}
+                                    className="text-red-500 hover:text-red-700 p-1.5 rounded-full hover:bg-red-50 transition"
+                                    title="Hapus Posisi"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
                                 )}
                               </td>
                             </tr>
@@ -1107,9 +1486,9 @@ const Dashboard = () => {
                 <div className="bg-white p-6 rounded-2xl shadow-lg border border-gray-100">
                   <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center">
                     <Users className="w-5 h-5 mr-2 text-tangerang-purple" />
-                    Tambah User Admin Baru
+                    {editingUser ? 'Edit User Admin' : 'Tambah User Admin Baru'}
                   </h2>
-                  <form onSubmit={handleCreateUser} className="flex flex-col md:flex-row gap-4 items-end">
+                  <form onSubmit={editingUser ? handleUpdateUser : handleCreateUser} className="flex flex-col md:flex-row gap-4 items-end">
                     <div className="flex-1 w-full">
                       <label className="block text-sm font-medium text-gray-700 mb-1">Username</label>
                       <input
@@ -1122,14 +1501,14 @@ const Dashboard = () => {
                       />
                     </div>
                     <div className="flex-1 w-full">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">{editingUser ? 'Password Baru (Opsional)' : 'Password'}</label>
                       <input
                         type="password"
-                        required
+                        required={!editingUser}
                         value={newUser.password}
                         onChange={e => setNewUser({...newUser, password: e.target.value})}
                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-tangerang-purple focus:border-transparent outline-none transition-all"
-                        placeholder="Masukkan password"
+                        placeholder={editingUser ? 'Kosongkan jika tidak diubah' : 'Masukkan password'}
                       />
                     </div>
                     <div className="flex-1 w-full">
@@ -1147,8 +1526,17 @@ const Dashboard = () => {
                       type="submit"
                       className="px-6 py-2 bg-tangerang-purple text-white rounded-lg hover:bg-tangerang-dark transition font-medium shadow-md hover:shadow-lg"
                     >
-                      Tambah
+                      {editingUser ? 'Simpan Perubahan' : 'Tambah'}
                     </button>
+                    {editingUser && (
+                      <button
+                        type="button"
+                        onClick={cancelEditUser}
+                        className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition font-medium"
+                      >
+                        Batal
+                      </button>
+                    )}
                   </form>
                 </div>
 
@@ -1198,13 +1586,22 @@ const Dashboard = () => {
                             </td>
                             <td className="px-6 py-4">
                               {currentUserRole === 'superadmin' && (
-                              <button
-                                onClick={() => handleDeleteUser(user.id)}
-                                className="text-red-500 hover:text-red-700 p-1.5 rounded-full hover:bg-red-50 transition"
-                                title="Hapus User"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => startEditUser(user)}
+                                  className="text-gray-700 hover:text-tangerang-purple p-1.5 rounded-full hover:bg-purple-50 transition"
+                                  title="Edit User"
+                                >
+                                  <Pencil className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteUser(user.id)}
+                                  className="text-red-500 hover:text-red-700 p-1.5 rounded-full hover:bg-red-50 transition"
+                                  title="Hapus User"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
                               )}
                             </td>
                           </tr>
@@ -1221,6 +1618,204 @@ const Dashboard = () => {
                 </>
                 )}
               </div>
+            ) : activeTab === 'schedule' ? (
+            <div className="space-y-6 animate-in fade-in duration-500">
+              <div className="bg-white p-6 rounded-2xl shadow-lg border border-gray-100">
+                <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center">
+                  <Clock className="w-5 h-5 mr-2 text-tangerang-purple" />
+                  Atur Jadwal Ujian (Peserta Lolos)
+                </h2>
+                <div className="flex flex-col md:flex-row md:items-end gap-4 mb-6">
+                  <div className="flex-1">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Filter Sesi</label>
+                    <select
+                      value={scheduleFilterSessionId || ''}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setScheduleFilterSessionId(v === 'UNASSIGNED' ? 'UNASSIGNED' : (v ? parseInt(v) : ''));
+                      }}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-tangerang-purple focus:border-transparent outline-none"
+                    >
+                      <option value="">Semua Sesi</option>
+                      <option value="UNASSIGNED">Belum Ditentukan</option>
+                      {sessions.map(s => (
+                        <option key={s.id} value={s.id}>{s.name} ({new Date(s.date).toLocaleDateString('id-ID')})</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex-1">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Cari Peserta</label>
+                    <input
+                      type="text"
+                      placeholder="Nama atau NIK"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-tangerang-purple focus:border-transparent outline-none"
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                  </div>
+                </div>
+                {sessions.length > 3 && (
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="text-sm text-gray-600">
+                      Menampilkan sesi {scheduleCarouselIndex + 1}–{Math.min(scheduleCarouselIndex + 3, sessions.length)} dari {sessions.length}
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setScheduleCarouselIndex(i => Math.max(i - 1, 0))}
+                        disabled={scheduleCarouselIndex === 0}
+                        className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm disabled:opacity-50 hover:bg-gray-50 flex items-center gap-1"
+                        title="Sebelumnya"
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                        Prev
+                      </button>
+                      <button
+                        onClick={() => setScheduleCarouselIndex(i => (i + 3 < sessions.length ? i + 1 : i))}
+                        disabled={scheduleCarouselIndex + 3 >= sessions.length}
+                        className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm disabled:opacity-50 hover:bg-gray-50 flex items-center gap-1"
+                        title="Berikutnya"
+                      >
+                        Next
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+                <div
+                  className="relative overflow-hidden mb-6"
+                  onTouchStart={(e) => {
+                    const x = e.touches[0].clientX;
+                    (window as any).__s_start = x;
+                  }}
+                  onTouchMove={(e) => {
+                    const x = e.touches[0].clientX;
+                    (window as any).__s_delta = x - (window as any).__s_start;
+                  }}
+                  onTouchEnd={() => {
+                    const d = (window as any).__s_delta || 0;
+                    if (d > 50) {
+                      setScheduleCarouselIndex(i => Math.max(i - 1, 0));
+                    } else if (d < -50) {
+                      setScheduleCarouselIndex(i => (i + 3 < sessions.length ? i + 1 : i));
+                    }
+                    (window as any).__s_start = 0;
+                    (window as any).__s_delta = 0;
+                  }}
+                >
+                  <div
+                    className="flex transition-transform duration-300 ease-out"
+                    style={{ transform: `translateX(-${scheduleCarouselIndex * (100 / 3)}%)` }}
+                  >
+                    {sessions.map(s => {
+                      const assigned = applicants.filter(a => a.status === 'verified' && a.sessionId === s.id).length;
+                      return (
+                        <div key={s.id} className="basis-1/3 flex-shrink-0 px-2">
+                          <div className={`p-4 rounded-xl border ${activeTab === 'schedule' && scheduleFilterSessionId === s.id ? 'border-tangerang-purple bg-purple-50' : 'border-gray-200 bg-gray-50'}`}>
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="font-bold text-gray-800">{s.name}</div>
+                              <span className="text-xs px-2 py-0.5 rounded-full bg-gray-200 text-gray-700">{new Date(s.date).toLocaleDateString('id-ID')}</span>
+                            </div>
+                            <div className="text-sm text-gray-600">{s.startTime} - {s.endTime} WIB</div>
+                            <div className="text-xs text-gray-500 italic">{s.location}</div>
+                            <div className="mt-3 text-sm font-medium">
+                              {s.capacity > 0 ? `${assigned}/${s.capacity} ditempatkan` : `${assigned} ditempatkan`}
+                            </div>
+                            <button
+                              onClick={() => setScheduleFilterSessionId(s.id)}
+                              className="mt-3 w-full px-3 py-2 bg-purple-100 text-tangerang-purple rounded-lg hover:bg-purple-200 transition text-sm font-semibold"
+                            >
+                              Fokus Sesi Ini
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {sessions.length === 0 && (
+                    <div className="p-6 rounded-xl border border-gray-200 bg-gray-50 text-center">
+                      Tidak ada sesi tersedia.
+                    </div>
+                  )}
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead className="bg-gray-50 text-gray-600 text-xs uppercase font-semibold">
+                      <tr>
+                        <th className="px-6 py-4">Nama</th>
+                        <th className="px-6 py-4">NIK</th>
+                        <th className="px-6 py-4">Posisi</th>
+                        <th className="px-6 py-4">Sesi Saat Ini</th>
+                        <th className="px-6 py-4">Atur Sesi</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {applicants
+                        .filter(a => a.status === 'verified')
+                        .filter(a => scheduleFilterSessionId === 'UNASSIGNED' ? !a.sessionId : (!scheduleFilterSessionId || a.sessionId === scheduleFilterSessionId))
+                        .map(app => (
+                          <tr key={app.id} className="hover:bg-gray-50 transition">
+                            <td className="px-6 py-4 font-semibold text-gray-900">{app.name}</td>
+                            <td className="px-6 py-4 text-gray-600 text-sm">{app.nik}</td>
+                            <td className="px-6 py-4 text-gray-700 text-sm">{app.position}</td>
+                            <td className="px-6 py-4 text-sm text-gray-600">
+                              {app.Session ? (
+                                <>
+                                  <div className="font-medium">{app.Session.name}</div>
+                                  <div className="text-xs text-gray-500">
+                                    {new Date(app.Session.date).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                                    {' '}({app.Session.startTime} - {app.Session.endTime} WIB)
+                                  </div>
+                                  <div className="text-xs text-gray-500 italic">{app.Session.location}</div>
+                                </>
+                              ) : (
+                                <span className="text-gray-400 italic">Belum ditetapkan</span>
+                              )}
+                            </td>
+                            <td className="px-6 py-4">
+                              <select
+                                value={app.sessionId || ''}
+                                onChange={async (e) => {
+                                  const sid = e.target.value ? parseInt(e.target.value) : null;
+                                  if (sid) {
+                                    const s = sessions.find(x => x.id === sid);
+                                    if (s && s.capacity > 0) {
+                                      const assigned = applicants.filter(a => a.status === 'verified' && a.sessionId === sid).length;
+                                      if (assigned >= s.capacity) {
+                                        setCapacityPrompt({ open: true, applicantId: app.id, sessionId: sid, sessionName: s.name, assigned, capacity: s.capacity });
+                                        return;
+                                      }
+                                    }
+                                  }
+                                  try {
+                                    const res = await axios.post(`/admin/applicants/${app.id}/session`, { sessionId: sid }, { withCredentials: true });
+                                    const updated = res.data.applicant as Applicant;
+                                    setApplicants(prev => prev.map(a => a.id === app.id ? { ...a, sessionId: updated.sessionId, Session: updated.Session } : a));
+                                  } catch (err: any) {
+                                    alert(err.response?.data?.error || 'Gagal mengatur sesi');
+                                  }
+                                }}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-tangerang-purple focus:border-transparent outline-none"
+                              >
+                                <option value="">-- Pilih Sesi Ujian --</option>
+                                {sessions.map(s => (
+                                  <option key={s.id} value={s.id}>{s.name} ({new Date(s.date).toLocaleDateString('id-ID')})</option>
+                                ))}
+                              </select>
+                            </td>
+                          </tr>
+                        ))}
+                      {applicants.filter(a => a.status === 'verified').length === 0 && (
+                        <tr>
+                          <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
+                            Tidak ada peserta lolos yang tersedia saat ini.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
             ) : (activeTab === 'applicants' || activeTab === 'verification') ? (
             /* Table Section */
             <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden animate-in fade-in duration-500">
@@ -1275,9 +1870,10 @@ const Dashboard = () => {
                           <th className="px-6 py-4">Nama Lengkap</th>
                           <th className="px-6 py-4">NIK</th>
                           <th className="px-6 py-4">Jenis Kelamin</th>
-                          <th className="px-6 py-4">Tanggal Lahir</th>
+                          <th className="px-6 py-4">Tempat / Tanggal Lahir</th>
                           <th className="px-6 py-4">Umur (Saat Daftar)</th>
                           <th className="px-6 py-4">Pendidikan</th>
+                          <th className="px-6 py-4">Institusi</th>
                           <th className="px-6 py-4">Jurusan</th>
                           <th className="px-6 py-4">IPK</th>
                           <th className="px-6 py-4">Posisi</th>
@@ -1308,11 +1904,12 @@ const Dashboard = () => {
                               <td className="px-6 py-4 font-semibold text-gray-900">{app.name}</td>
                               <td className="px-6 py-4 text-gray-600 font-mono text-sm">{app.nik}</td>
                               <td className="px-6 py-4 text-gray-600">{app.gender}</td>
-                              <td className="px-6 py-4 text-gray-600">{app.birthDate || '-'}</td>
+                              <td className="px-6 py-4 text-gray-600">{app.birthPlace ? `${app.birthPlace}, ` : ''}{app.birthDate || '-'}</td>
                               <td className="px-6 py-4 text-gray-600 font-medium">
                                 {calculateAgeAtRegistration(app.birthDate, app.createdAt)}
                               </td>
                               <td className="px-6 py-4 text-gray-600">{app.education}</td>
+                              <td className="px-6 py-4 text-gray-600">{app.institution || '-'}</td>
                               <td className="px-6 py-4 text-gray-600">{app.major || '-'}</td>
                               <td className="px-6 py-4 text-gray-600">{app.gpa ? app.gpa.toFixed(2) : '-'}</td>
                               <td className="px-6 py-4">
@@ -1536,7 +2133,16 @@ const Dashboard = () => {
             <div className="p-4 border-b flex justify-between items-center bg-gray-50">
               <div>
                 <h3 className="text-lg font-bold text-gray-800">Verifikasi Berkas: {previewFile.label} <span className="text-xs text-gray-400 font-normal">(v3)</span></h3>
-                <p className="text-sm text-gray-500">Pelamar: {selectedApplicant.name}</p>
+                <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1">
+                  <p className="text-sm text-gray-600 font-medium">Pelamar: <span className="text-gray-900">{selectedApplicant.name}</span></p>
+                  {previewFile.type === 'ijazah' && (
+                    <>
+                      <p className="text-sm text-gray-600 font-medium">Institusi: <span className="text-gray-900">{selectedApplicant.institution || '-'}</span></p>
+                      <p className="text-sm text-gray-600 font-medium">Pendidikan: <span className="text-gray-900">{selectedApplicant.major || selectedApplicant.education}</span></p>
+                      <p className="text-sm text-gray-600 font-medium">IPK: <span className="text-gray-900">{selectedApplicant.gpa ? selectedApplicant.gpa.toFixed(2) : '-'}</span></p>
+                    </>
+                  )}
+                </div>
               </div>
               <button 
                 onClick={() => setPreviewFile(null)}
@@ -1556,15 +2162,33 @@ const Dashboard = () => {
             </div>
 
             <div className="p-4 border-t bg-white flex flex-col gap-4">
-              <div className="w-full">
-                 <label className="block text-sm font-medium text-gray-700 mb-1">Komentar / Alasan Penolakan</label>
-                 <textarea 
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="w-full">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Komentar / Alasan Penolakan</label>
+                  <textarea 
                     value={rejectReasonInput}
                     onChange={(e) => setRejectReasonInput(e.target.value)}
                     className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
                     placeholder="Masukkan alasan jika berkas ditolak..."
                     rows={2}
-                 />
+                  />
+                </div>
+                <div className="w-full">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Penugasan Sesi Ujian</label>
+                  <select
+                    value={selectedSessionId}
+                    onChange={(e) => setSelectedSessionId(e.target.value ? parseInt(e.target.value) : '')}
+                    className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
+                  >
+                    <option value="">-- Pilih Sesi Ujian --</option>
+                    {sessions.map(session => (
+                      <option key={session.id} value={session.id}>
+                        {session.name} ({new Date(session.date).toLocaleDateString('id-ID')})
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-xs text-gray-500 italic">Sesi ini akan dicetak pada kartu ujian jika status diverifikasi Lolos.</p>
+                </div>
               </div>
 
               <div className="flex justify-between items-center">
@@ -1599,6 +2223,53 @@ const Dashboard = () => {
                   </button>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Capacity Prompt Modal (global, covers header too) */}
+      {capacityPrompt.open && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40">
+          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-gray-100 p-6">
+            <div className="flex items-center mb-3">
+              <div className="w-10 h-10 rounded-full bg-purple-100 text-tangerang-purple flex items-center justify-center mr-3">
+                <Clock className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-gray-800">Kapasitas Sesi Penuh</h3>
+                <p className="text-xs text-gray-500">Sesi {capacityPrompt.sessionName}</p>
+              </div>
+            </div>
+            <p className="text-sm text-gray-700 mb-4">
+              Kapasitas sesi telah terpenuhi ({capacityPrompt.assigned}/{capacityPrompt.capacity}). Tetap masukkan peserta ke sesi ini?
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setCapacityPrompt({ open: false });
+                }}
+                className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition font-medium"
+              >
+                Tidak
+              </button>
+              <button
+                onClick={async () => {
+                  try {
+                    if (!capacityPrompt.applicantId || !capacityPrompt.sessionId) return;
+                    const res = await axios.post(`/admin/applicants/${capacityPrompt.applicantId}/session`, { sessionId: capacityPrompt.sessionId }, { withCredentials: true });
+                    const updated = res.data.applicant as Applicant;
+                    setApplicants(prev => prev.map(a => a.id === capacityPrompt.applicantId ? { ...a, sessionId: updated.sessionId, Session: updated.Session } : a));
+                  } catch (err: any) {
+                    alert(err.response?.data?.error || 'Gagal mengatur sesi');
+                  } finally {
+                    setCapacityPrompt({ open: false });
+                  }
+                }}
+                className="flex-1 px-4 py-2 bg-tangerang-purple text-white rounded-lg hover:bg-tangerang-dark transition font-medium"
+              >
+                Iya, Tetap Masukkan
+              </button>
             </div>
           </div>
         </div>

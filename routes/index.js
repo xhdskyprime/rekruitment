@@ -76,7 +76,7 @@ const uploadFields = upload.fields([
 
 router.post('/register', (req, res, next) => {
     console.log('Request received at /register');
-    uploadFields(req, res, (err) => {
+    uploadFields(req, res, async (err) => {
         if (err) {
             console.error('Multer error:', err);
             // Handle Multer string errors or Error objects
@@ -89,43 +89,125 @@ router.post('/register', (req, res, next) => {
         console.log('Multer processing done');
         console.log('req.body:', req.body);
         console.log('req.files keys:', req.files ? Object.keys(req.files) : 'No files');
+
+        // --- Backend Validation ---
+        const errors = [];
+        const { name, nik, gender, birthPlace, birthDate, education, institution, major, gpa, email, phoneNumber, position } = req.body;
+        console.log('Validating NIK:', nik, 'Length:', nik ? nik.length : 'null');
+
+        if (!name) errors.push('Nama wajib diisi');
+        if (!nik || nik.length !== 16 || !/^\d+$/.test(nik)) {
+            console.log('NIK validation failed for:', nik);
+            errors.push('NIK harus 16 digit angka');
+        }
+        if (!gender) errors.push('Jenis kelamin wajib diisi');
+        if (!birthPlace) errors.push('Tempat lahir wajib diisi');
+        if (!birthDate) errors.push('Tanggal lahir wajib diisi');
+        if (!education) errors.push('Pendidikan wajib diisi');
+        if (!institution) errors.push('Institusi pendidikan wajib diisi');
+        if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.push('Format email tidak valid');
+        if (!phoneNumber || phoneNumber.length < 10) errors.push('Nomor HP minimal 10 digit');
+        if (!position) errors.push('Posisi wajib dipilih');
+
+        // Age Validation (18-35 years)
+        if (birthDate) {
+            const bDate = new Date(birthDate);
+            bDate.setHours(0, 0, 0, 0);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            const minAgeDate = new Date(today.getFullYear() - 18, today.getMonth(), today.getDate());
+            const maxAgeDate = new Date(today.getFullYear() - 35, today.getMonth(), today.getDate());
+
+            if (bDate > minAgeDate) errors.push('Usia minimal adalah 18 tahun');
+            if (bDate < maxAgeDate) errors.push('Usia maksimal adalah 35 tahun');
+        }
+
+        if (education !== 'SMA/SMK') {
+            if (!major) errors.push('Jurusan wajib diisi');
+            if (!gpa) errors.push('IPK wajib diisi');
+        }
+
+        if (errors.length > 0) {
+            console.log('Validation errors:', errors);
+            // Cleanup temp files on validation error
+            if (req.files) {
+                Object.values(req.files).forEach(fileArray => {
+                    fileArray.forEach(file => {
+                        if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
+                    });
+                });
+            }
+            return res.status(400).json({ error: errors.join(', ') });
+        }
+
+        // --- Early Duplicate Check ---
+        try {
+            const existing = await Applicant.findOne({
+                where: {
+                    [Op.or]: [{ nik }, { email }]
+                }
+            });
+            if (existing) {
+                if (req.files) {
+                    Object.values(req.files).forEach(fileArray => {
+                        fileArray.forEach(file => {
+                            if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
+                        });
+                    });
+                }
+                const field = existing.nik === nik ? 'NIK' : 'Email';
+                return res.status(400).json({ error: `${field} sudah terdaftar.` });
+            }
+        } catch (dbErr) {
+            console.error('Duplicate check error:', dbErr);
+        }
+        // --------------------------
+
         next();
     });
 }, async (req, res) => {
+    const uploadedDriveIds = []; // Track drive IDs for cleanup if save fails
     try {
         const files = req.files || {};
-        if (!files.ktp || !files.ijazah || !files.str || !files.suratPernyataan || !files.pasFoto) {
-            return res.status(400).json({ error: 'Harap upload semua dokumen yang diminta (KTP, Ijazah, STR, Surat Pernyataan, Pas Foto).' });
+        // Required files based on UI: Surat Lamaran, KTP, Ijazah, STR, Surat Pernyataan, Pas Foto
+        // Sertifikat is optional
+        if (!files.suratLamaran || !files.ktp || !files.ijazah || !files.str || !files.suratPernyataan || !files.pasFoto) {
+            // Cleanup temp files
+            if (req.files) {
+                Object.values(req.files).forEach(fileArray => {
+                    fileArray.forEach(file => {
+                        if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
+                    });
+                });
+            }
+            return res.status(400).json({ error: 'Harap upload semua dokumen wajib (Surat Lamaran & CV, KTP, Ijazah, STR, Surat Pernyataan, Pas Foto).' });
         }
 
-        const { name, nik, gender, birthDate, education, major, gpa, email, phoneNumber, position } = req.body;
-        console.log('Received body:', req.body); // Debugging
+        const { name, nik, gender, birthPlace, birthDate, education, institution, major, gpa, email, phoneNumber, position } = req.body;
         
         // Helper to upload to Drive and return proxy path
         const processFile = async (fileArray, label) => {
              if (fileArray && fileArray.length > 0) {
                  const file = fileArray[0];
                  const ext = path.extname(file.originalname);
-                 // Format: Label_NIK.ext (e.g., Surat Lamaran & CV_1809011908000007.pdf)
                  const customName = `${label}_${nik}${ext}`;
                  
                  try {
                      console.log(`Uploading ${label} to Drive as ${customName}...`);
                      const driveFile = await driveService.uploadFile(file, null, customName);
+                     uploadedDriveIds.push(driveFile.id);
                      
-                     // Delete local file after successful upload
                      if (fs.existsSync(file.path)) {
                          fs.unlinkSync(file.path);
                      }
                      
-                     // Return proxy path
                      return `/file/proxy/${driveFile.id}`;
                  } catch (err) {
                      console.error(`Failed to upload ${label} to Drive:`, err);
-                     // Fallback to local path if Drive upload fails (optional, but good for robustness)
-                     // But user specifically asked for Drive upload. If it fails, we should probably throw or keep local.
-                     // For now, let's keep local if Drive fails, but log error.
-                     return '/uploads/' + file.filename;
+                     // If Drive upload fails, we should probably fail the whole process
+                     // to maintain consistency (all files on Drive).
+                     throw new Error(`Gagal mengunggah berkas ${label} ke Drive.`);
                  }
              }
              return null;
@@ -143,8 +225,10 @@ router.post('/register', (req, res, next) => {
             name,
             nik,
             gender,
+            birthPlace,
             birthDate,
             education,
+            institution,
             major,
             gpa: gpa ? parseFloat(gpa) : null,
             email,
@@ -163,11 +247,30 @@ router.post('/register', (req, res, next) => {
     } catch (error) {
         console.error('Registration Error:', error);
         
+        // Cleanup uploaded Drive files if anything fails
+        for (const driveId of uploadedDriveIds) {
+            try {
+                console.log(`Cleaning up Drive file ${driveId} due to error...`);
+                await driveService.deleteFile(driveId);
+            } catch (cleanupErr) {
+                console.error(`Failed to cleanup Drive file ${driveId}:`, cleanupErr);
+            }
+        }
+
+        // Cleanup any remaining temp files
+        if (req.files) {
+            Object.values(req.files).forEach(fileArray => {
+                fileArray.forEach(file => {
+                    if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
+                });
+            });
+        }
+        
         if (error.name === 'SequelizeUniqueConstraintError') {
             return res.status(400).json({ error: 'NIK atau Email sudah terdaftar.' });
         }
         
-        res.status(500).json({ error: 'Terjadi kesalahan saat menyimpan data: ' + error.message });
+        res.status(400).json({ error: error.message });
     }
 });
 
@@ -191,7 +294,10 @@ router.get('/api/applicant/:id/exam-card', async (req, res) => {
             return res.status(400).json({ error: 'NIK is required for verification' });
         }
 
-        const applicant = await Applicant.findOne({ where: { id, nik } });
+        const applicant = await Applicant.findOne({ 
+            where: { id, nik },
+            include: [{ model: require('../models/Session'), attributes: ['id', 'name', 'date', 'startTime', 'endTime', 'location'] }]
+        });
 
         if (!applicant) {
             return res.status(404).json({ error: 'Applicant not found or NIK mismatch' });
@@ -280,11 +386,21 @@ router.get('/api/applicant/:id/exam-card', async (req, res) => {
             let photoLoaded = false;
             
             if (applicant.pasFotoPath) {
+                // Ensure photo is contained within its bounds (Prevent overflow)
+                doc.save();
+                doc.rect(photoX, contentY, photoWidth, photoHeight).clip();
+
                 if (applicant.pasFotoPath.includes('/file/proxy/')) {
                     try {
                         const fileId = applicant.pasFotoPath.split('/file/proxy/')[1];
                         const photoBuffer = await driveService.getFileBuffer(fileId);
-                        doc.image(photoBuffer, photoX, contentY, { width: photoWidth, height: photoHeight, fit: [photoWidth, photoHeight] });
+                        doc.image(photoBuffer, photoX, contentY, { 
+                            width: photoWidth, 
+                            height: photoHeight, 
+                            fit: [photoWidth, photoHeight],
+                            align: 'center',
+                            valign: 'center'
+                        });
                         photoLoaded = true;
                     } catch (err) {
                         console.error("Error loading drive photo:", err);
@@ -293,12 +409,19 @@ router.get('/api/applicant/:id/exam-card', async (req, res) => {
                     // Local File: path stored as /uploads/filename
                     const localPath = path.join(__dirname, '../public', applicant.pasFotoPath);
                     if (fs.existsSync(localPath)) {
-                        doc.image(localPath, photoX, contentY, { width: photoWidth, height: photoHeight, fit: [photoWidth, photoHeight] });
+                        doc.image(localPath, photoX, contentY, { 
+                            width: photoWidth, 
+                            height: photoHeight, 
+                            fit: [photoWidth, photoHeight],
+                            align: 'center',
+                            valign: 'center'
+                        });
                         photoLoaded = true;
                     } else {
                         console.error("Local photo not found at:", localPath);
                     }
                 }
+                doc.restore();
             }
 
             // Draw border around photo (always) - REMOVED as requested
@@ -350,9 +473,35 @@ router.get('/api/applicant/:id/exam-card', async (req, res) => {
         drawRow('Nomor Peserta', applicant.id.toString().padStart(6, '0'));
         drawRow('Nama Lengkap', applicant.name);
         drawRow('NIK', applicant.nik);
+        
+        const birthDate = applicant.birthDate ? new Date(applicant.birthDate).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '-';
+        const birthPlace = applicant.birthPlace || '-';
+        drawRow('TTL', `${birthPlace}, ${birthDate}`);
+        
+        drawRow('Institusi', applicant.institution || '-');
+        drawRow('Pendidikan', applicant.major || applicant.education);
         drawRow('Posisi Dilamar', applicant.position);
-        drawRow('Lokasi Ujian', 'RSUD Tigaraksa (Gedung Utama)');
-        drawRow('Jadwal Ujian', 'Menunggu Informasi Selanjutnya');
+
+        // Session Information
+        let location = 'RSUD Tigaraksa (Gedung Utama)';
+        let schedule = 'Menunggu Informasi Selanjutnya';
+
+        if (applicant.Session) {
+            location = applicant.Session.location || location;
+            const date = applicant.Session.date ? new Date(applicant.Session.date).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' }) : '';
+            const startTime = applicant.Session.startTime ? applicant.Session.startTime.substring(0, 5) : '';
+            const endTime = applicant.Session.endTime ? applicant.Session.endTime.substring(0, 5) : '';
+            
+            if (date) {
+                schedule = `${date}`;
+                if (startTime) {
+                    schedule += ` (${startTime}${endTime ? ' - ' + endTime : ''})`;
+                }
+            }
+        }
+
+        drawRow('Lokasi Ujian', location);
+        drawRow('Jadwal Ujian', schedule);
         drawRow('Status', 'TERVERIFIKASI', '#16a34a', true); // Green-600
 
         // New Layout: QR Code (Left) and Table (Right)
@@ -608,16 +757,33 @@ router.get('/api/print-registration-card/:id', async (req, res) => {
         // Photo
         try {
             if (applicant.pasFotoPath) {
-                 if (applicant.pasFotoPath.includes('/file/proxy/')) {
+                // Ensure photo is contained within its bounds (Prevent overflow)
+                doc.save();
+                doc.rect(photoX, photoY, photoWidth, photoHeight).clip();
+
+                if (applicant.pasFotoPath.includes('/file/proxy/')) {
                     const fileId = applicant.pasFotoPath.split('/file/proxy/')[1];
                     const photoBuffer = await driveService.getFileBuffer(fileId);
-                    doc.image(photoBuffer, photoX, photoY, { width: photoWidth, height: photoHeight, cover: [photoWidth, photoHeight], align: 'center', valign: 'center' });
-                 } else {
+                    doc.image(photoBuffer, photoX, photoY, { 
+                        width: photoWidth, 
+                        height: photoHeight, 
+                        cover: [photoWidth, photoHeight], 
+                        align: 'center', 
+                        valign: 'center' 
+                    });
+                } else {
                     const localPath = path.join(__dirname, '../public', applicant.pasFotoPath);
                     if (fs.existsSync(localPath)) {
-                        doc.image(localPath, photoX, photoY, { width: photoWidth, height: photoHeight, cover: [photoWidth, photoHeight], align: 'center', valign: 'center' });
+                        doc.image(localPath, photoX, photoY, { 
+                            width: photoWidth, 
+                            height: photoHeight, 
+                            cover: [photoWidth, photoHeight], 
+                            align: 'center', 
+                            valign: 'center' 
+                        });
                     }
-                 }
+                }
+                doc.restore();
             } else {
                 // Placeholder
                 doc.rect(photoX, photoY, photoWidth, photoHeight).stroke();
@@ -658,10 +824,11 @@ router.get('/api/print-registration-card/:id', async (req, res) => {
         drawRow('Nama', applicant.name.toUpperCase());
         
         const birthDate = applicant.birthDate ? new Date(applicant.birthDate).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '-';
-        drawRow('Tempat / Tanggal Lahir', `Indonesia / ${birthDate}`);
+        const birthPlace = applicant.birthPlace || '-';
+        drawRow('Tempat / Tanggal Lahir', `${birthPlace} / ${birthDate}`);
         
         drawRow('Jenis Kelamin', applicant.gender);
-        drawRow('Institusi Pendidikan', 'Universitas/Sekolah Terdaftar'); 
+        drawRow('Institusi Pendidikan', applicant.institution || '-'); 
         drawRow('Kualifikasi Pendidikan', applicant.major || applicant.education);
         drawRow('Posisi Dilamar', applicant.position.toUpperCase());
         

@@ -24,9 +24,17 @@ const Applicant = sequelize.define('Applicant', {
         type: DataTypes.DATEONLY,
         allowNull: true // Allow null for existing records temporarily
     },
+    birthPlace: {
+        type: DataTypes.STRING,
+        allowNull: true
+    },
     education: {
         type: DataTypes.STRING,
         allowNull: false
+    },
+    institution: {
+        type: DataTypes.STRING,
+        allowNull: true
     },
     major: {
         type: DataTypes.STRING,
@@ -127,6 +135,10 @@ const Applicant = sequelize.define('Applicant', {
     },
     attendanceTime: {
         type: DataTypes.DATE,
+        allowNull: true
+    },
+    sessionId: {
+        type: DataTypes.INTEGER,
         allowNull: true
     }
 }, {
