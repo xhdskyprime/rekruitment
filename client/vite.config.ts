@@ -8,8 +8,11 @@ export default defineConfig({
     port: 5174,
     proxy: {
       '/register': 'http://localhost:3000',
-      '/status': 'http://localhost:3000',
-      '/api': 'http://localhost:3000',
+      '/api': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+        secure: false,
+      },
       '/positions': 'http://localhost:3000',
       '/admin': {
         target: 'http://localhost:3000',

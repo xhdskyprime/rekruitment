@@ -1382,25 +1382,35 @@ const Dashboard = () => {
                                 {app.status === 'pending' && <span className="text-yellow-600 font-medium flex items-center"><Clock className="w-4 h-4 mr-1"/> Menunggu</span>}
                               </td>
                               <td className="px-6 py-4">
-                                {app.status === 'verified' && (
+                                <div className="flex items-center">
                                   <button
-                                    onClick={() => handlePrintCard(app)}
-                                    className="flex items-center px-3 py-1.5 bg-tangerang-purple text-white text-xs font-medium rounded hover:bg-tangerang-dark transition shadow-sm"
-                                    title="Cetak Kartu Ujian"
+                                      onClick={() => window.open(`/api/print-registration-card/${app.id}`, '_blank')}
+                                      className="flex items-center px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded hover:bg-blue-700 transition shadow-sm mr-2"
+                                      title="Cetak Kartu Pendaftaran"
                                   >
-                                    <Printer className="w-4 h-4 mr-1.5" />
-                                    Kartu Ujian
+                                      <Printer className="w-4 h-4 mr-1.5" />
+                                      Kartu Daftar
                                   </button>
-                                )}
-                                {currentUserRole === 'superadmin' && (
-                                <button
-                                  onClick={() => handleDeleteApplicant(app.id)}
-                                  className="ml-2 text-red-500 hover:text-red-700 p-1.5 rounded-full hover:bg-red-50 transition"
-                                  title="Hapus Pelamar"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                                )}
+                                  {app.status === 'verified' && (
+                                    <button
+                                      onClick={() => handlePrintCard(app)}
+                                      className="flex items-center px-3 py-1.5 bg-tangerang-purple text-white text-xs font-medium rounded hover:bg-tangerang-dark transition shadow-sm"
+                                      title="Cetak Kartu Ujian"
+                                    >
+                                      <Printer className="w-4 h-4 mr-1.5" />
+                                      Kartu Ujian
+                                    </button>
+                                  )}
+                                  {currentUserRole === 'superadmin' && (
+                                  <button
+                                    onClick={() => handleDeleteApplicant(app.id)}
+                                    className="ml-2 text-red-500 hover:text-red-700 p-1.5 rounded-full hover:bg-red-50 transition"
+                                    title="Hapus Pelamar"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                  )}
+                                </div>
                               </td>
                             </>
                           )}

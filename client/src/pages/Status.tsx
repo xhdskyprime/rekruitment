@@ -82,7 +82,7 @@ const Status = () => {
         <div className="bg-white rounded-2xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-bottom-4">
           <div className="bg-gray-50 px-8 py-4 border-b border-gray-100 flex justify-between items-center">
             <h3 className="text-lg font-semibold text-gray-800">Detail Lamaran</h3>
-            <span className="text-xs font-mono text-gray-400">ID: {applicant.id}</span>
+            <span className="text-xs font-mono text-gray-400">No. Peserta: {applicant.id}</span>
           </div>
           
           <div className="p-8">

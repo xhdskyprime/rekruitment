@@ -205,7 +205,7 @@ router.get('/api/applicant/:id/exam-card', async (req, res) => {
         const doc = new PDFDocument({ size: 'A4', margin: 50 });
         const filename = `Kartu_Ujian_${applicant.name.replace(/\s+/g, '_')}.pdf`;
 
-        res.setHeader('Content-disposition', `attachment; filename="${filename}"`);
+        res.setHeader('Content-disposition', `inline; filename="${filename}"`);
         res.setHeader('Content-type', 'application/pdf');
 
         doc.pipe(res);
@@ -396,9 +396,12 @@ router.get('/api/applicant/:id/exam-card', async (req, res) => {
         // Table Content
         // Row 1
         doc.font('Helvetica-Bold').fontSize(10).fillColor('#000000')
-           .text('Tanggal Melamar', tableX + 5, tableY + 8, { width: col1Width - 10 });
+           .text('Tanggal Daftar', tableX + 5, tableY + 8, { width: col1Width - 10 });
+        
+        const tanggalDaftar = applicant.createdAt ? new Date(applicant.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : '-';
+        
         doc.font('Helvetica').fontSize(10)
-           .text('5 September 2024', tableX + col1Width + 5, tableY + 8, { width: tableWidth - col1Width - 10 });
+           .text(tanggalDaftar, tableX + col1Width + 5, tableY + 8, { width: tableWidth - col1Width - 10 });
         
         // Row 2
         doc.font('Helvetica-Bold').fontSize(10)
@@ -475,6 +478,214 @@ router.get('/api/status', async (req, res) => {
         }
         res.json({ applicant });
     } catch (error) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+// Download Registration Card (PDF)
+router.get('/api/print-registration-card/:id', async (req, res) => {
+    try {
+        const applicant = await Applicant.findByPk(req.params.id);
+
+        if (!applicant) {
+            return res.status(404).json({ error: 'Applicant not found' });
+        }
+
+        // --- Custom Page Size Configuration (Matches Card Size) ---
+        // Width: 600, Height: 500 (As requested "segini saja")
+        // No large margins needed since the page IS the card
+        const pageWidth = 600;
+        const pageHeight = 500;
+        
+        const doc = new PDFDocument({ 
+            size: [pageWidth, pageHeight], 
+            margin: 0,
+            autoFirstPage: true
+        });
+
+        // Determine disposition based on query param
+        // If ?download=true -> attachment (Force download)
+        // Default -> inline (Preview)
+        const disposition = req.query.download === 'true' ? 'attachment' : 'inline';
+
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `${disposition}; filename=Kartu_Pendaftaran_${applicant.id}.pdf`);
+
+        doc.pipe(res);
+
+        // Layout Configuration
+        // Since page size matches card, we use small padding
+        const margin = 20; 
+        const cardWidth = pageWidth - (2 * margin);
+        const cardHeight = pageHeight - (2 * margin); 
+        const cardX = margin;
+        const cardY = margin;
+
+        // Draw Card Border (Gray thin border)
+        doc.rect(cardX, cardY, cardWidth, cardHeight).lineWidth(1).strokeColor('#808080').stroke(); 
+
+        // Watermark (Background - Centered in Card)
+        doc.save();
+        doc.translate(pageWidth / 2, pageHeight / 2); // Center of page
+        doc.rotate(-45);
+        doc.opacity(0.05); 
+        doc.fontSize(60).fillColor('#000000').text('RSUD TIGARAKSA', -300, 0, { align: 'center', width: 600, baseline: 'middle' }); 
+        doc.restore();
+
+        // Content Positioning
+        const contentMargin = 20;
+        const startX = cardX + contentMargin;
+        const startY = cardY + contentMargin;
+        const contentWidth = cardWidth - (2 * contentMargin);
+
+        // --- Header ---
+        // Logo (Left)
+        const logoPath = path.join(__dirname, '../client/public/logo-rsud.png');
+        if (fs.existsSync(logoPath)) {
+             try {
+                doc.image(logoPath, startX, startY, { height: 50 });
+             } catch (e) {
+                console.error('Error embedding logo:', e);
+             }
+        }
+
+        // Barcode (Top Right - Lowered Position)
+        try {
+            const barcodeBuffer = await bwipjs.toBuffer({
+                bcid:        'code128',
+                text:        applicant.id.toString().padStart(6, '0'), 
+                scale:       2,          
+                height:      6,          
+                includetext: false,      
+                textxalign:  'center',   
+                textsize:    11,         
+                paddingheight: 2         
+            });
+            
+            const barcodeWidth = 90; 
+            const barcodeX = startX + contentWidth - barcodeWidth;
+            // Lower the barcode by 10 points to align better
+            const barcodeY = startY + 10; 
+            
+            doc.image(barcodeBuffer, barcodeX, barcodeY, { width: barcodeWidth }); 
+        } catch (e) {
+            console.error("Barcode generation error:", e);
+        }
+
+        // Title (Center - Perfectly centered)
+        const titleY = startY + 10;
+        
+        doc.font('Helvetica-Bold').fontSize(14).fillColor('#4B0082') 
+           .text('KARTU PENDAFTARAN REKRUTMEN', startX, titleY, { width: contentWidth, align: 'center' });
+        doc.text('PEGAWAI RSUD TIGARAKSA', startX, doc.y, { width: contentWidth, align: 'center' });
+        doc.fontSize(14).text('2026', startX, doc.y, { width: contentWidth, align: 'center' });
+
+        // Line Separator
+        const headerBottom = startY + 80;
+        doc.moveTo(startX, headerBottom).lineTo(startX + contentWidth, headerBottom).lineWidth(3).strokeColor('#4B0082').stroke();
+        doc.strokeColor('#000000'); // Reset color
+        
+        // Subheader
+        doc.fontSize(12).font('Helvetica-Bold').fillColor('#000000').text('RSUD Tigaraksa', startX, headerBottom + 10);
+
+        // --- Data Fields & Photo (Original Layout) ---
+        let currentY = headerBottom + 40;
+        
+        // Revised Column Configuration to shift data left
+        const col1X = startX;
+        const col2X = startX + 140; // Shifted left from 200 to 140
+        const col3X = col2X + 10;   // Value starts here
+        
+        const photoX = startX + contentWidth - 90; // Right aligned
+        const photoY = headerBottom + 20;
+        const photoWidth = 90;
+        const photoHeight = 120; 
+        
+        // Calculate max width for value to avoid hitting photo
+        // Gap between value start and photo start
+        const valueMaxWidth = photoX - col3X - 10; // 10px buffer
+
+        // Photo
+        try {
+            if (applicant.pasFotoPath) {
+                 if (applicant.pasFotoPath.includes('/file/proxy/')) {
+                    const fileId = applicant.pasFotoPath.split('/file/proxy/')[1];
+                    const photoBuffer = await driveService.getFileBuffer(fileId);
+                    doc.image(photoBuffer, photoX, photoY, { width: photoWidth, height: photoHeight, cover: [photoWidth, photoHeight], align: 'center', valign: 'center' });
+                 } else {
+                    const localPath = path.join(__dirname, '../public', applicant.pasFotoPath);
+                    if (fs.existsSync(localPath)) {
+                        doc.image(localPath, photoX, photoY, { width: photoWidth, height: photoHeight, cover: [photoWidth, photoHeight], align: 'center', valign: 'center' });
+                    }
+                 }
+            } else {
+                // Placeholder
+                doc.rect(photoX, photoY, photoWidth, photoHeight).stroke();
+                doc.fontSize(10).text('Foto', photoX, photoY + 50, { width: photoWidth, align: 'center' });
+            }
+        } catch (e) {
+            console.error('Photo load error:', e);
+        }
+
+        // Helper for rows with wrapping
+        const drawRow = (label, value) => {
+            const textValue = value || '-';
+            
+            // Draw Label
+            doc.font('Helvetica-Bold').fontSize(10).fillColor('#000000').text(label, col1X, currentY);
+            
+            // Draw Colon
+            doc.text(':', col2X, currentY);
+            
+            // Draw Value with Wrapping
+            // Measure height first to see if it wraps
+            const textOptions = { width: valueMaxWidth, align: 'left' };
+            const textHeight = doc.heightOfString(textValue, textOptions);
+            
+            doc.text(textValue, col3X, currentY, textOptions);
+            
+            // Calculate next Y based on whichever is taller: single row (18) or wrapped text
+            const rowHeight = Math.max(18, textHeight + 5); // +5 for padding
+            currentY += rowHeight;
+        };
+
+        // Fields
+        drawRow('Jenis Seleksi', 'Pegawai BLUD');
+        drawRow('Nomor Peserta', applicant.id.toString().padStart(6, '0')); 
+        currentY += 5; // Small spacer
+
+        drawRow('No. Identitas KTP', applicant.nik);
+        drawRow('Nama', applicant.name.toUpperCase());
+        
+        const birthDate = applicant.birthDate ? new Date(applicant.birthDate).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '-';
+        drawRow('Tempat / Tanggal Lahir', `Indonesia / ${birthDate}`);
+        
+        drawRow('Jenis Kelamin', applicant.gender);
+        drawRow('Institusi Pendidikan', 'Universitas/Sekolah Terdaftar'); 
+        drawRow('Kualifikasi Pendidikan', applicant.major || applicant.education);
+        drawRow('Posisi Dilamar', applicant.position.toUpperCase());
+        
+        const regDate = applicant.createdAt ? new Date(applicant.createdAt).toLocaleString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }).replace(/\./g, ':') : '-';
+        drawRow('Tgl / Jam Pendaftaran', regDate);
+
+        // Divider
+        currentY = Math.max(currentY, photoY + photoHeight + 10); // Ensure below photo
+        currentY += 10;
+
+        doc.moveTo(startX, currentY).lineTo(startX + contentWidth, currentY).lineWidth(1).strokeColor('#000000').stroke(); 
+        currentY += 2;
+        doc.moveTo(startX, currentY).lineTo(startX + contentWidth, currentY).lineWidth(2).stroke(); 
+        
+        currentY += 30;
+
+        // Footer Text
+        doc.font('Helvetica-BoldOblique').fontSize(9).fillColor('black')
+           .text('"Demikian data pribadi ini saya buat dengan sebenarnya dan bila ternyata isian yang dibuat tidak benar, saya bersedia menanggung akibat hukum yang ditimbulkannya"', startX + 20, currentY, { width: contentWidth - 40, align: 'center' });
+        
+        doc.end();
+
+    } catch (error) {
+        console.error('PDF Generation Error:', error);
         res.status(500).json({ error: 'Server error' });
     }
 });
