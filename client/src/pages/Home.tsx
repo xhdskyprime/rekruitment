@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
-import { Upload, CheckCircle, AlertCircle, FileText, Send, Download, Trash2 } from 'lucide-react';
+import { Upload, CheckCircle, AlertCircle, FileText, Send, Download, Trash2, X, Eye } from 'lucide-react';
 
 const Home = () => {
   const [formData, setFormData] = useState({
@@ -32,6 +32,39 @@ const Home = () => {
   const [showAgeWarning, setShowAgeWarning] = useState(false);
   const [positions, setPositions] = useState<{ id: number, name: string }[]>([]);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
+  const [registeredId, setRegisteredId] = useState<number | null>(null);
+
+  // File Preview State
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewType, setPreviewType] = useState<string>('');
+  const [previewName, setPreviewName] = useState<string>('');
+
+  const handlePreview = (file: File) => {
+    if (!file) return;
+    
+    const url = URL.createObjectURL(file);
+    setPreviewUrl(url);
+    setPreviewType(file.type);
+    setPreviewName(file.name);
+  };
+
+  const closePreview = () => {
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+    }
+    setPreviewUrl(null);
+    setPreviewType('');
+    setPreviewName('');
+  };
+
+  // Auto-download card when registration is successful
+  React.useEffect(() => {
+    if (status === 'success' && registeredId) {
+      // Use window.location.href to trigger download (since Content-Disposition is attachment)
+      // This won't navigate away if it's a file download
+      window.location.href = `/api/print-registration-card/${registeredId}?download=true`;
+    }
+  }, [status, registeredId]);
 
   React.useEffect(() => {
     const fetchPositions = async () => {
@@ -207,7 +240,10 @@ const Home = () => {
     if (files.pasFoto) data.append('pasFoto', files.pasFoto);
 
     try {
-      await axios.post('/register', data);
+      const response = await axios.post('/register', data);
+      if (response.data.applicant && response.data.applicant.id) {
+          setRegisteredId(response.data.applicant.id);
+      }
       setStatus('success');
     } catch (error: any) {
       console.error(error);
@@ -227,22 +263,39 @@ const Home = () => {
           </div>
           <h2 className="text-3xl font-bold text-gray-800 mb-4">Pendaftaran Berhasil!</h2>
           <p className="text-gray-600 text-lg mb-8">
-            Terima kasih, <span className="font-semibold text-tangerang-purple">{formData.name}</span>. 
-            Data Anda telah kami terima dan akan segera diverifikasi oleh tim HR.
+            Terima kasih, <span className="font-semibold text-tangerang-purple">{formData.name.toUpperCase()}</span>. 
+            Data lamaran Anda telah kami terima dan akan diverifikasi oleh tim verifikasi panita rekrutment.
           </p>
-          <div className="flex justify-center space-x-4">
+          <div className="flex flex-col md:flex-row justify-center gap-4">
             <button 
               onClick={() => window.location.reload()} 
               className="px-6 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition font-medium"
             >
               Kembali ke Beranda
             </button>
-            <Link 
-              to="/status" 
-              className="px-6 py-3 bg-tangerang-purple text-white rounded-xl hover:bg-tangerang-light transition shadow-lg shadow-purple-200 font-medium"
-            >
-              Cek Status Lamaran
-            </Link>
+          </div>
+          
+          <div className="mt-8 pt-6 border-t border-gray-100">
+            <h3 className="text-lg font-semibold text-gray-800 mb-3">Dokumen Penting</h3>
+            <p className="text-gray-500 mb-4">Silakan unduh Kartu Pendaftaran Anda sebagai bukti registrasi.</p>
+            
+            {registeredId ? (
+                <button
+                    onClick={() => window.location.href = `/api/print-registration-card/${registeredId}?download=true`}
+                    className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition shadow-lg shadow-blue-200 font-medium w-full md:w-auto inline-flex items-center justify-center"
+                >
+                    <Download className="w-5 h-5 mr-2" />
+                    Download Kartu Pendaftaran
+                </button>
+            ) : (
+                <Link 
+                  to={`/status?nik=${formData.nik}`}
+                  className="px-6 py-3 bg-white border-2 border-tangerang-purple text-tangerang-purple rounded-xl hover:bg-purple-50 transition font-medium inline-flex items-center"
+                >
+                   <Download className="w-5 h-5 mr-2" />
+                   Download Kartu Pendaftaran (via Cek Status)
+                </Link>
+            )}
           </div>
         </div>
       </div>
@@ -480,10 +533,13 @@ const Home = () => {
                     </p>
                   </div>
                   {files.pasFoto && (
-                    <div className="absolute inset-0 bg-green-50 bg-opacity-90 flex items-center justify-center rounded-lg">
-                      <div className="text-green-700 font-medium flex items-center">
-                        <CheckCircle className="w-5 h-5 mr-2" />
-                        {files.pasFoto.name}
+                    <div className="absolute inset-0 bg-green-50 bg-opacity-90 flex items-center justify-center rounded-lg group-hover:bg-opacity-100 transition cursor-pointer" onClick={() => handlePreview(files.pasFoto!)}>
+                      <div className="text-green-700 font-medium flex items-center max-w-full px-4">
+                        <CheckCircle className="w-5 h-5 mr-2 flex-shrink-0" />
+                        <span className="truncate underline decoration-green-700/30 underline-offset-2" title="Klik untuk preview">{files.pasFoto.name}</span>
+                      </div>
+                      <div className="absolute bottom-2 text-xs text-green-600 flex items-center opacity-0 group-hover:opacity-100 transition">
+                         <Eye className="w-3 h-3 mr-1" /> Klik untuk lihat
                       </div>
                     </div>
                   )}
@@ -555,17 +611,31 @@ const Home = () => {
                   { id: 'sertifikat', label: 'Sertifikat', desc: 'Sertifikat Keahlian (Maks 2MB) - Opsional', required: false },
                 ].map((field) => (
                   <div key={field.id} className={`relative border border-dashed rounded-lg p-4 hover:bg-gray-50 transition group ${errors[field.id] ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center">
-                        <div className={`p-2 rounded-lg mr-3 ${files[field.id] ? 'bg-green-100 text-green-600' : (errors[field.id] ? 'bg-red-100 text-red-500' : 'bg-gray-100 text-gray-500')}`}>
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex items-center flex-1 min-w-0">
+                        <div className={`p-2 rounded-lg mr-3 flex-shrink-0 ${files[field.id] ? 'bg-green-100 text-green-600' : (errors[field.id] ? 'bg-red-100 text-red-500' : 'bg-gray-100 text-gray-500')}`}>
                           {files[field.id] ? <CheckCircle className="w-5 h-5" /> : (errors[field.id] ? <AlertCircle className="w-5 h-5" /> : <FileText className="w-5 h-5" />)}
                         </div>
-                        <div>
-                          <p className="font-medium text-gray-700">{field.label}</p>
-                          <p className={`text-xs ${errors[field.id] ? 'text-red-500' : 'text-gray-500'}`}>{errors[field.id] || files[field.id]?.name || field.desc}</p>
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium text-gray-700 truncate" title={field.label}>{field.label}</p>
+                          {files[field.id] ? (
+                            <button 
+                                type="button"
+                                onClick={() => handlePreview(files[field.id]!)}
+                                className="text-xs text-left truncate text-blue-600 hover:text-blue-800 hover:underline flex items-center mt-0.5 w-full focus:outline-none"
+                                title="Klik untuk preview file"
+                            >
+                                <Eye className="w-3 h-3 mr-1.5 flex-shrink-0" />
+                                <span className="truncate">{files[field.id]?.name}</span>
+                            </button>
+                          ) : (
+                            <p className={`text-xs truncate ${errors[field.id] ? 'text-red-500' : 'text-gray-500'}`} title={field.desc}>
+                                {errors[field.id] || field.desc}
+                            </p>
+                          )}
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-shrink-0">
                         {files[field.id] && (
                           <button
                             type="button"
@@ -614,6 +684,41 @@ const Home = () => {
           </div>
         </form>
       </div>
+
+      {/* File Preview Modal */}
+      {previewUrl && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black bg-opacity-75 animate-in fade-in duration-200">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl h-[85vh] flex flex-col animate-in zoom-in duration-200 overflow-hidden">
+            <div className="flex justify-between items-center p-4 border-b bg-gray-50">
+              <div className="flex items-center space-x-2 overflow-hidden">
+                 <FileText className="w-5 h-5 text-gray-500 flex-shrink-0" />
+                 <h3 className="font-semibold text-gray-800 truncate" title={previewName}>Preview: {previewName}</h3>
+              </div>
+              <button 
+                onClick={closePreview}
+                className="p-2 hover:bg-gray-200 rounded-full transition text-gray-500 hover:text-gray-700"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            <div className="flex-1 bg-gray-100 p-4 flex items-center justify-center overflow-auto relative">
+                {previewType.startsWith('image/') ? (
+                    <img src={previewUrl} alt="Preview" className="max-w-full max-h-full object-contain shadow-lg" />
+                ) : previewType === 'application/pdf' ? (
+                    <iframe src={previewUrl} className="w-full h-full rounded-lg shadow-lg border bg-white" title="PDF Preview"></iframe>
+                ) : (
+                    <div className="text-center p-8 bg-white rounded-xl shadow">
+                        <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                        <p className="text-gray-600 mb-4">Preview tidak tersedia untuk tipe file ini.</p>
+                        <a href={previewUrl} download={previewName} className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                            <Download className="w-4 h-4 mr-2" /> Download File
+                        </a>
+                    </div>
+                )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
