@@ -8,13 +8,15 @@ const Home = () => {
     name: '',
     nik: '',
     gender: '',
+    birthPlace: '',
     birthDate: '',
     education: '',
+    institution: '',
     major: '',
     gpa: '',
     email: '',
     phoneNumber: '',
-    position: '',
+    position: ''
   });
   
   const [files, setFiles] = useState<{ [key: string]: File | null }>({
@@ -85,9 +87,11 @@ const Home = () => {
     if (!formData.nik) newErrors.nik = 'NIK wajib diisi';
     else if (formData.nik.length !== 16) newErrors.nik = 'NIK harus 16 digit angka';
     
+    if (!formData.birthPlace) newErrors.birthPlace = 'Tempat lahir wajib diisi';
     if (!formData.birthDate) newErrors.birthDate = 'Tanggal lahir wajib diisi';
     if (!formData.gender) newErrors.gender = 'Jenis kelamin wajib dipilih';
     if (!formData.education) newErrors.education = 'Pendidikan terakhir wajib dipilih';
+    if (!formData.institution) newErrors.institution = 'Institusi pendidikan wajib diisi';
     
     if (formData.education !== 'SMA/SMK') {
       if (!formData.major) newErrors.major = 'Jurusan wajib diisi';
@@ -223,8 +227,10 @@ const Home = () => {
     data.append('name', formData.name);
     data.append('nik', formData.nik);
     data.append('gender', formData.gender);
+    data.append('birthPlace', formData.birthPlace);
     data.append('birthDate', formData.birthDate);
     data.append('education', formData.education);
+    data.append('institution', formData.institution);
     data.append('major', formData.major);
     data.append('gpa', formData.gpa);
     data.append('email', formData.email);
@@ -395,17 +401,32 @@ const Home = () => {
                 {errors.nik && <p className="text-red-500 text-xs mt-1">{errors.nik}</p>}
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Tanggal Lahir <span className="text-xs text-gray-500 font-normal">(Max 35 Tahun)</span></label>
-                <input 
-                  type="date" 
-                  name="birthDate" 
-                  required
-                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-tangerang-purple focus:border-transparent transition ${errors.birthDate ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
-                  value={formData.birthDate}
-                  onChange={handleInputChange}
-                />
-                {errors.birthDate && <p className="text-red-500 text-xs mt-1">{errors.birthDate}</p>}
+              <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Tempat Lahir</label>
+                    <input 
+                      type="text" 
+                      name="birthPlace" 
+                      required
+                      className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-tangerang-purple focus:border-transparent transition ${errors.birthPlace ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
+                      placeholder="Kota Lahir"
+                      value={formData.birthPlace}
+                      onChange={handleInputChange}
+                    />
+                    {errors.birthPlace && <p className="text-red-500 text-xs mt-1">{errors.birthPlace}</p>}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Tanggal Lahir <span className="text-xs text-gray-500 font-normal">(Max 35 Tahun)</span></label>
+                    <input 
+                      type="date" 
+                      name="birthDate" 
+                      required
+                      className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-tangerang-purple focus:border-transparent transition ${errors.birthDate ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
+                      value={formData.birthDate}
+                      onChange={handleInputChange}
+                    />
+                    {errors.birthDate && <p className="text-red-500 text-xs mt-1">{errors.birthDate}</p>}
+                  </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -442,6 +463,23 @@ const Home = () => {
                   </select>
                   {errors.education && <p className="text-red-500 text-xs mt-1">{errors.education}</p>}
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Institusi Pendidikan</label>
+                <input 
+                  type="text" 
+                  name="institution" 
+                  required
+                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-tangerang-purple focus:border-transparent transition ${errors.institution ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
+                  placeholder="Nama Sekolah / Universitas"
+                  value={formData.institution}
+                  onChange={handleInputChange}
+                />
+                {errors.institution && <p className="text-red-500 text-xs mt-1">{errors.institution}</p>}
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Jurusan</label>
                   <input 

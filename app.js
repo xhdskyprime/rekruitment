@@ -2,10 +2,17 @@ require('dotenv').config();
 const express = require('express');
 const path = require('path');
 const sequelize = require('./models/database');
+const { DataTypes } = require('sequelize');
 const Applicant = require('./models/Applicant');
 const Admin = require('./models/Admin');
 const Position = require('./models/Position');
 const SystemSetting = require('./models/SystemSetting');
+const Session = require('./models/Session');
+
+// Define Associations
+Session.hasMany(Applicant, { foreignKey: 'sessionId' });
+Applicant.belongsTo(Session, { foreignKey: 'sessionId' });
+
 const methodOverride = require('method-override');
 const session = require('express-session');
 const SequelizeStore = require('connect-session-sequelize')(session.Store);
@@ -28,8 +35,12 @@ app.get('/health', (req, res) => {
 // This ensures we get the real client IP instead of Cloudflare's IP
 app.set('trust proxy', 1);
 
-// Proxy route for Google Drive files
+// Proxy route for Google Drive files - Protected (Admin only)
 app.get('/file/proxy/:id', async (req, res) => {
+    if (!req.session.adminId) {
+        console.warn(`[Security] Unauthorized access attempt to /file/proxy/${req.params.id} from IP: ${req.ip}`);
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
     const fileId = req.params.id;
     await driveService.getFileStream(fileId, res);
 });
@@ -50,7 +61,7 @@ app.use(limiter);
 
 // Middleware
 app.use(cors({
-    origin: ['http://localhost:5173', process.env.CLIENT_URL || '*'], // Allow production domain
+    origin: ['http://localhost:5174', 'http://localhost:5173', process.env.CLIENT_URL || '*'],
     credentials: true
 }));
 app.use(express.urlencoded({ extended: true }));
@@ -75,8 +86,9 @@ app.use(methodOverride('_method'));
 // Session Store
 const sessionStore = new SequelizeStore({
     db: sequelize,
-    checkExpirationInterval: 15 * 60 * 1000, // The interval at which to cleanup expired sessions in milliseconds.
-    expiration: 24 * 60 * 60 * 1000  // The maximum age (in milliseconds) of a valid session.
+    tableName: 'SessionStore',
+    checkExpirationInterval: 15 * 60 * 1000,
+    expiration: 24 * 60 * 60 * 1000
 });
 
 app.use(session({
@@ -111,6 +123,24 @@ app.get(/(.*)/, (req, res) => {
 // Sync Database and Start Server
 sequelize.sync({ alter: true }).then(async () => {
     console.log('Database synced');
+    
+    try {
+        const qi = sequelize.getQueryInterface();
+        let desc = {};
+        try {
+            desc = await qi.describeTable('Sessions');
+        } catch (e) {
+            desc = {};
+        }
+        if (!desc.id) {
+            console.warn('Recreating Sessions table with primary key id...');
+            await qi.dropTable('Sessions').catch(() => {});
+            await Session.sync({ force: true });
+            console.log('Sessions table recreated with primary key id');
+        }
+    } catch (e) {
+        console.error('Sessions table migration error:', e);
+    }
     
     // Ensure session table is created
     if (sessionStore.sync) {
