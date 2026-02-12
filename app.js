@@ -120,73 +120,79 @@ app.get(/(.*)/, (req, res) => {
   res.sendFile(path.join(__dirname, 'client/dist/index.html'));
 });
 
-// Sync Database and Start Server
-sequelize.sync({ alter: true }).then(async () => {
-    console.log('Database synced');
-    
+// Sync Database and Start Server (ordered to avoid FK issues on Railway)
+(async () => {
+  try {
+    await sequelize.authenticate();
+    console.log('Database connected');
+ 
+    // Ensure Sessions table exists with primary key 'id' BEFORE altering Applicants (FK)
+    const qi = sequelize.getQueryInterface();
+    let desc = {};
     try {
-        const qi = sequelize.getQueryInterface();
-        let desc = {};
-        try {
-            desc = await qi.describeTable('Sessions');
-        } catch (e) {
-            desc = {};
-        }
-        if (!desc.id) {
-            console.warn('Recreating Sessions table with primary key id...');
-            await qi.dropTable('Sessions').catch(() => {});
-            await Session.sync({ force: true });
-            console.log('Sessions table recreated with primary key id');
-        }
-    } catch (e) {
-        console.error('Sessions table migration error:', e);
+      desc = await qi.describeTable('Sessions');
+    } catch {
+      desc = {};
     }
-    
-    // Ensure session table is created
+    if (!desc.id) {
+      console.warn('Sessions table missing primary key "id" — recreating...');
+      await qi.dropTable('Sessions').catch(() => {});
+      await Session.sync({ force: true });
+      console.log('Sessions table recreated with primary key id');
+    } else {
+      await Session.sync({ alter: true });
+    }
+ 
+    // Sync other tables (safe alter)
+    await Admin.sync({ alter: true });
+    await Position.sync({ alter: true });
+    await SystemSetting.sync({ alter: true });
+    await Applicant.sync({ alter: true }); // Now FK to Sessions(id) can be created safely
+ 
+    // Ensure session store table exists
     if (sessionStore.sync) {
-        await sessionStore.sync();
-        console.log('Session table synced');
+      await sessionStore.sync();
+      console.log('Session store table synced');
     }
-    
+ 
     // Seed default admin
     console.log('Checking Admin count...');
     const adminCount = await Admin.count();
     console.log('Admin count:', adminCount);
     if (adminCount === 0) {
-        const hashedPassword = await bcrypt.hash('password123', 10);
-        await Admin.create({
-            username: 'admin',
-            password: hashedPassword,
-            role: 'superadmin'
-        });
-        console.log('Default admin created: admin / password123 (superadmin)');
+      const hashedPassword = await bcrypt.hash('password123', 10);
+      await Admin.create({
+        username: 'admin',
+        password: hashedPassword,
+        role: 'superadmin'
+      });
+      console.log('Default admin created: admin / password123 (superadmin)');
     }
-
+ 
     // Seed default settings
     console.log('Seeding default settings...');
     try {
-        // await SystemSetting.sync({ alter: true }); // Removed redundant sync
-        
-        console.log('Finding existing settings...');
-        const existing = await SystemSetting.findOne({ where: { key: 'recruitmentPhase' } });
-        if (!existing) {
-             console.log('Creating default setting...');
-             await SystemSetting.create({
-                key: 'recruitmentPhase',
-                value: 'registration',
-                description: 'Current phase of recruitment: registration, verification, announcement'
-             });
-             console.log('System settings created');
-        } else {
-            console.log('System settings loaded:', existing.value);
-        }
+      console.log('Finding existing settings...');
+      const existing = await SystemSetting.findOne({ where: { key: 'recruitmentPhase' } });
+      if (!existing) {
+        console.log('Creating default setting...');
+        await SystemSetting.create({
+          key: 'recruitmentPhase',
+          value: 'registration',
+          description: 'Current phase of recruitment: registration, verification, announcement'
+        });
+        console.log('System settings created');
+      } else {
+        console.log('System settings loaded:', existing.value);
+      }
     } catch (error) {
-        console.error('Error seeding SystemSetting:', error);
+      console.error('Error seeding SystemSetting:', error);
     }
-
+ 
     app.listen(PORT, '0.0.0.0', () => {
-        console.log(`Server running on http://0.0.0.0:${PORT}`);
+      console.log(`Server running on http://0.0.0.0:${PORT}`);
     });
-}).catch(err => {
+  } catch (err) {
     console.error('Database sync error:', err);
-});
+  }
+})();
