@@ -187,7 +187,7 @@ router.post('/register', (req, res, next) => {
         const { name, nik, gender, birthPlace, birthDate, education, institution, major, gpa, email, phoneNumber, position } = req.body;
         
         // Helper to upload to Drive and return proxy path
-        const processFile = async (fileArray, label) => {
+        const processFile = async (fileArray, label, parentFolderId) => {
              if (fileArray && fileArray.length > 0) {
                  const file = fileArray[0];
                  const ext = path.extname(file.originalname);
@@ -195,7 +195,7 @@ router.post('/register', (req, res, next) => {
                  
                  try {
                      console.log(`Uploading ${label} to Drive as ${customName}...`);
-                     const driveFile = await driveService.uploadFile(file, null, customName);
+                     const driveFile = await driveService.uploadFile(file, parentFolderId, customName);
                      uploadedDriveIds.push(driveFile.id);
                      
                      if (fs.existsSync(file.path)) {
@@ -205,21 +205,21 @@ router.post('/register', (req, res, next) => {
                      return `/file/proxy/${driveFile.id}`;
                  } catch (err) {
                      console.error(`Failed to upload ${label} to Drive:`, err);
-                     // If Drive upload fails, we should probably fail the whole process
-                     // to maintain consistency (all files on Drive).
-                     throw new Error(`Gagal mengunggah berkas ${label} ke Drive.`);
+                     throw new Error(`Gagal mengunggah berkas ${label} ke Drive: ${err.message || 'Unknown error'}`);
                  }
              }
              return null;
         };
 
-        const ktpPath = await processFile(files.ktp, 'KTP');
-        const ijazahPath = await processFile(files.ijazah, 'Ijazah & Nilai Terakhir');
-        const strPath = await processFile(files.str, 'STR');
-        const sertifikatPath = await processFile(files.sertifikat, 'Sertifikat');
-        const suratPernyataanPath = await processFile(files.suratPernyataan, 'Surat Pernyataan');
-        const pasFotoPath = await processFile(files.pasFoto, 'Pas Foto');
-        const suratLamaranPath = await processFile(files.suratLamaran, 'Surat Lamaran & CV');
+        const initFolderName = `${nik}-${name.replace(/\s+/g, '_')}`;
+        const applicantFolderId = await driveService.ensureFolder(initFolderName, null);
+        const ktpPath = await processFile(files.ktp, 'KTP', applicantFolderId);
+        const ijazahPath = await processFile(files.ijazah, 'Ijazah & Nilai Terakhir', applicantFolderId);
+        const strPath = await processFile(files.str, 'STR', applicantFolderId);
+        const sertifikatPath = await processFile(files.sertifikat, 'Sertifikat', applicantFolderId);
+        const suratPernyataanPath = await processFile(files.suratPernyataan, 'Surat Pernyataan', applicantFolderId);
+        const pasFotoPath = await processFile(files.pasFoto, 'Pas Foto', applicantFolderId);
+        const suratLamaranPath = await processFile(files.suratLamaran, 'Surat Lamaran & CV', applicantFolderId);
 
         const applicant = await Applicant.create({
             name,
@@ -242,6 +242,22 @@ router.post('/register', (req, res, next) => {
             pasFotoPath,
             suratLamaranPath
         });
+
+        try {
+            const createdAt = applicant.createdAt ? new Date(applicant.createdAt) : new Date();
+            const yy = String(createdAt.getFullYear()).slice(-2);
+            const mm = String(createdAt.getMonth() + 1).padStart(2, '0');
+            const dd = String(createdAt.getDate()).padStart(2, '0');
+            const pos = await Position.findOne({ where: { name: position } });
+            const posCode = (pos?.code || '00').padStart(2, '0').slice(-2);
+            const seq = String(applicant.id % 1000).padStart(3, '0');
+            applicant.participantNumber = `${yy}${mm}${dd}${posCode}${seq}`;
+            await applicant.save();
+            const finalFolderName = `${applicant.participantNumber}-${name.replace(/\s+/g, '_')}`;
+            await driveService.renameFile(applicantFolderId, finalFolderName);
+        } catch (genErr) {
+            console.error('Generate participantNumber error:', genErr);
+        }
 
         res.status(201).json({ success: true, applicant });
     } catch (error) {
@@ -351,11 +367,25 @@ router.get('/api/applicant/:id/exam-card', async (req, res) => {
         doc.font('Helvetica').fontSize(10).fillColor('#666666')
            .text('REKRUTMEN PEGAWAI RSUD TIGARAKSA', cardX, cardY + 45, { width: cardWidth, align: 'center' });
 
+        const regDate = applicant.createdAt ? new Date(applicant.createdAt) : new Date();
+        const yy = String(regDate.getFullYear()).slice(-2);
+        const mm = String(regDate.getMonth() + 1).padStart(2, '0');
+        const dd = String(regDate.getDate()).padStart(2, '0');
+        let participantNumber = applicant.participantNumber;
+        if (!participantNumber) {
+            try {
+                const pos = await Position.findOne({ where: { name: applicant.position } });
+                const posCode = (pos?.code || '00').padStart(2, '0').slice(-2);
+                const seq = String(applicant.id % 1000).padStart(3, '0');
+                participantNumber = `${yy}${mm}${dd}${posCode}${seq}`;
+            } catch {}
+        }
+
         // Barcode (Top Right)
         try {
             const barcodeBuffer = await bwipjs.toBuffer({
                 bcid:        'code128',       // Barcode type
-                text:        applicant.id.toString().padStart(6, '0'),    // Text to encode
+                text:        participantNumber,    // Text to encode
                 scale:       2,               // 3x scaling factor
                 height:      10,              // Bar height, in millimeters
                 includetext: true,            // Show human-readable text
@@ -470,7 +500,7 @@ router.get('/api/applicant/:id/exam-card', async (req, res) => {
             currentY += 20;
         };
 
-        drawRow('Nomor Peserta', applicant.id.toString().padStart(6, '0'));
+        drawRow('Nomor Peserta', participantNumber);
         drawRow('Nama Lengkap', applicant.name);
         drawRow('NIK', applicant.nik);
         
@@ -513,7 +543,7 @@ router.get('/api/applicant/:id/exam-card', async (req, res) => {
         try {
             const qrBuffer = await bwipjs.toBuffer({
                 bcid:        'qrcode',
-                text:        applicant.id.toString(),
+                text:        participantNumber,
                 scale:       3,
                 padding:     1,
                 includetext: false,
@@ -698,11 +728,25 @@ router.get('/api/print-registration-card/:id', async (req, res) => {
              }
         }
 
+        const createdAt2 = applicant.createdAt ? new Date(applicant.createdAt) : new Date();
+        const yy2 = String(createdAt2.getFullYear()).slice(-2);
+        const mm2 = String(createdAt2.getMonth() + 1).padStart(2, '0');
+        const dd2 = String(createdAt2.getDate()).padStart(2, '0');
+        let participantNumber2 = applicant.participantNumber;
+        if (!participantNumber2) {
+            try {
+                const pos = await Position.findOne({ where: { name: applicant.position } });
+                const posCode = (pos?.code || '00').padStart(2, '0').slice(-2);
+                const seq2 = String(applicant.id % 1000).padStart(3, '0');
+                participantNumber2 = `${yy2}${mm2}${dd2}${posCode}${seq2}`;
+            } catch {}
+        }
+
         // Barcode (Top Right - Lowered Position)
         try {
             const barcodeBuffer = await bwipjs.toBuffer({
                 bcid:        'code128',
-                text:        applicant.id.toString().padStart(6, '0'), 
+                text:        participantNumber2, 
                 scale:       2,          
                 height:      6,          
                 includetext: false,      
@@ -817,7 +861,7 @@ router.get('/api/print-registration-card/:id', async (req, res) => {
 
         // Fields
         drawRow('Jenis Seleksi', 'Pegawai BLUD');
-        drawRow('Nomor Peserta', applicant.id.toString().padStart(6, '0')); 
+        drawRow('Nomor Peserta', participantNumber2); 
         currentY += 5; // Small spacer
 
         drawRow('No. Identitas KTP', applicant.nik);

@@ -182,7 +182,10 @@ router.get('/', isAuthenticated, async (req, res) => {
 router.post('/attendance', isAuthenticated, async (req, res) => {
     const { applicantId } = req.body;
     try {
-        const applicant = await Applicant.findByPk(applicantId);
+        let applicant = await Applicant.findOne({ where: { participantNumber: applicantId } });
+        if (!applicant) {
+            applicant = await Applicant.findByPk(applicantId);
+        }
         if (!applicant) {
             return res.status(404).json({ error: 'Peserta tidak ditemukan' });
         }
@@ -325,7 +328,14 @@ router.post('/verify-file/:id', isAuthenticated, async (req, res) => {
                     doc.fontSize(14).text(`Nama: ${applicant.name}`);
                     doc.text(`Email: ${applicant.email}`);
                     doc.text(`Posisi: ${applicant.position}`);
-                    doc.text(`ID Peserta: ${applicant.id}`);
+                    const createdAt = applicant.createdAt ? new Date(applicant.createdAt) : new Date();
+                    const yy = String(createdAt.getFullYear()).slice(-2);
+                    const mm = String(createdAt.getMonth() + 1).padStart(2, '0');
+                    const dd = String(createdAt.getDate()).padStart(2, '0');
+                    const seq = String(applicant.id % 1000).padStart(3, '0');
+                    const posCode = (await Position.findOne({ where: { name: applicant.position } }))?.code || '00';
+                    const participantNumber = (applicant.participantNumber) || `${yy}${mm}${dd}${String(posCode).padStart(2,'0').slice(-2)}${seq}`;
+                    doc.text(`ID Peserta: ${participantNumber}`);
                     doc.text(`Tanggal Ujian: ${new Date().toLocaleDateString()}`); 
                     doc.moveDown();
                     
@@ -333,7 +343,7 @@ router.post('/verify-file/:id', isAuthenticated, async (req, res) => {
                     try {
                         const qrBuffer = await bwipjs.toBuffer({
                             bcid:        'qrcode',       // QR Code type
-                            text:        applicant.id.toString(),    // Text to encode
+                            text:        participantNumber,    // Text to encode
                             scale:       3,               // 3x scaling factor
                             padding:     1,               // Padding around QR Code
                             includetext: false,            // QR Code doesn't usually show text
@@ -426,15 +436,19 @@ router.get('/positions', isAuthenticated, async (req, res) => {
 
 router.post('/positions', isSuperAdmin, async (req, res) => {
     try {
-        const { name } = req.body;
+        const { name, code } = req.body;
         if (!name || !name.trim()) {
             return res.status(400).json({ error: 'Nama posisi wajib diisi' });
         }
-        const pos = await Position.create({ name: name.trim() });
+        const normalizedCode = String(code || '').trim();
+        if (!/^\d{2}$/.test(normalizedCode)) {
+            return res.status(400).json({ error: 'Kode posisi harus 2 digit angka (01-99)' });
+        }
+        const pos = await Position.create({ name: name.trim(), code: normalizedCode });
         res.status(201).json({ success: true, position: pos });
     } catch (error) {
         if (error.name === 'SequelizeUniqueConstraintError') {
-            return res.status(400).json({ error: 'Posisi sudah ada' });
+            return res.status(400).json({ error: 'Nama atau Kode posisi sudah ada' });
         }
         res.status(500).json({ error: 'Server Error' });
     }
@@ -442,16 +456,21 @@ router.post('/positions', isSuperAdmin, async (req, res) => {
 
 router.put('/positions/:id', isSuperAdmin, async (req, res) => {
     try {
-        const { name } = req.body;
+        const { name, code } = req.body;
         const pos = await Position.findByPk(req.params.id);
         if (!pos) return res.status(404).json({ error: 'Posisi tidak ditemukan' });
         if (!name || !name.trim()) return res.status(400).json({ error: 'Nama posisi wajib diisi' });
+        const normalizedCode = String(code || '').trim();
+        if (!/^\d{2}$/.test(normalizedCode)) {
+            return res.status(400).json({ error: 'Kode posisi harus 2 digit angka (01-99)' });
+        }
         pos.name = name.trim();
+        pos.code = normalizedCode;
         await pos.save();
         res.json({ success: true, position: pos });
     } catch (error) {
         if (error.name === 'SequelizeUniqueConstraintError') {
-            return res.status(400).json({ error: 'Posisi sudah ada' });
+            return res.status(400).json({ error: 'Nama atau Kode posisi sudah ada' });
         }
         res.status(500).json({ error: 'Server Error' });
     }

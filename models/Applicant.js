@@ -127,6 +127,10 @@ const Applicant = sequelize.define('Applicant', {
         type: DataTypes.STRING,
         allowNull: true
     },
+    participantNumber: {
+        type: DataTypes.STRING,
+        allowNull: true
+    },
     
     // Attendance
     attendanceStatus: {
@@ -146,6 +150,7 @@ const Applicant = sequelize.define('Applicant', {
         { fields: ['status'] },
         { fields: ['nik'] },
         { fields: ['name'] },
+        { fields: ['participantNumber'] },
         { fields: ['attendanceStatus'] },
         { fields: ['createdAt'] }
     ]
