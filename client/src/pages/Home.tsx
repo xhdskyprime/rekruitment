@@ -196,7 +196,17 @@ const Home = () => {
         });
       }
 
-      // Validasi Ukuran File
+      // Validasi Ukuran & Tipe File
+      const isPasFoto = name === 'pasFoto';
+      const allowedTypes = isPasFoto ? ['image/jpeg', 'image/jpg', 'image/png'] : ['application/pdf'];
+      const allowedExt = isPasFoto ? 'Gambar (JPG/PNG)' : 'PDF';
+
+      if (!allowedTypes.includes(file.type)) {
+        alert(`Tipe file tidak valid. Silakan upload file format ${allowedExt}.`);
+        e.target.value = ''; // Reset input file
+        return;
+      }
+
       const maxSize = name === 'sertifikat' ? 2 * 1024 * 1024 : 1 * 1024 * 1024;
       const maxSizeLabel = name === 'sertifikat' ? '2MB' : '1MB';
 
@@ -565,7 +575,7 @@ const Home = () => {
                     <div className="text-sm text-gray-600">
                       <span className="font-medium text-tangerang-purple">Upload file</span> atau drag and drop
                     </div>
-                    <p className="text-xs text-gray-500">JPG, PNG maks 1MB</p>
+                    <p className="text-xs text-gray-500">JPG, JPEG, PNG maks 1MB</p>
                     <p className="text-xs text-gray-500 font-medium mt-2 bg-gray-100 py-1 px-2 rounded-full inline-block">
                       Berpakaian Rapih (Background Merah/Biru)
                     </p>
@@ -693,7 +703,7 @@ const Home = () => {
                             required={field.required}
                             className="hidden" 
                             onChange={handleFileChange}
-                            accept=".pdf,.jpg,.jpeg,.png"
+                            accept=".pdf"
                           />
                         </label>
                       </div>
@@ -758,15 +768,23 @@ const Home = () => {
         </div>
       )}
       {status === 'submitting' && (
-        <div className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center">
-          <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-sm text-center">
-            <div className="flex justify-center mb-4">
-              <div className="bg-purple-100 p-4 rounded-full">
-                <Loader2 className="w-10 h-10 text-tangerang-purple animate-spin" />
+        <div className="fixed inset-0 z-[70] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl p-10 w-full max-w-sm text-center transform animate-in fade-in zoom-in duration-300">
+            <div className="flex justify-center mb-8 relative">
+              <div className="absolute inset-0 bg-tangerang-purple/20 rounded-full blur-xl animate-pulse"></div>
+              <div className="bg-gradient-to-tr from-tangerang-purple to-tangerang-light p-5 rounded-full relative shadow-lg shadow-purple-200">
+                <Loader2 className="w-12 h-12 text-white animate-spin" />
               </div>
             </div>
-            <h3 className="text-xl font-bold text-gray-900 mb-2">Mengirim Lamaran...</h3>
-            <p className="text-gray-600">Mohon tunggu sejenak hingga semua berkas terunggah.</p>
+            <h3 className="text-2xl font-bold text-gray-900 mb-3 tracking-tight">Mengirim Lamaran</h3>
+            <div className="space-y-3">
+              <p className="text-gray-600 leading-relaxed">
+                Mohon tunggu sejenak hingga semua berkas <span className="font-semibold text-tangerang-purple">terkirim</span>.
+              </p>
+              <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden">
+                <div className="bg-tangerang-purple h-full w-2/3 rounded-full animate-infinite-loading"></div>
+              </div>
+            </div>
           </div>
         </div>
       )}

@@ -107,7 +107,7 @@
   }
 
   .sidebar-active-item {
-    @apply relative bg-[#F3F4F6] text-indigo-600 font-bold rounded-l-[32px] ml-4 w-[calc(100%-16px)] !important;
+    @apply relative bg-[#F3F4F6] text-indigo-600 font-bold rounded-l-[32px] ml-6 w-[calc(100%-24px)] !important;
     animation: slideActiveBg 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
     transition: all 0.5s cubic-bezier(0.22, 1, 0.36, 1);
     z-index: 10;
@@ -124,32 +124,46 @@
     }
   }
 
-  .sidebar-active-item::before {
+  /* Menutup celah di sebelah kanan agar background sidebar tidak terlihat */
+  .sidebar-active-item::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: -20px;
+    width: 20px;
+    height: 100%;
+    background-color: #F3F4F6;
+    z-index: -1;
+  }
+
+  /* Kurva atas */
+  .sidebar-active-item .curve-top {
     content: "";
     position: absolute;
     top: -30px;
-    right: -1px; /* Merapatkan ke tepi kanan sidebar */
+    right: -4.1px;
     width: 30px;
     height: 30px;
     background-color: transparent;
     border-bottom-right-radius: 30px;
     box-shadow: 10px 10px 0 10px #F3F4F6;
     pointer-events: none;
-    z-index: 5;
+    z-index: 15;
   }
 
-  .sidebar-active-item::after {
+  /* Kurva bawah */
+  .sidebar-active-item .curve-bottom {
     content: "";
     position: absolute;
     bottom: -30px;
-    right: -1px; /* Merapatkan ke tepi kanan sidebar */
+    right: -4.1px;
     width: 30px;
     height: 30px;
     background-color: transparent;
     border-top-right-radius: 30px;
     box-shadow: 10px -10px 0 10px #F3F4F6;
     pointer-events: none;
-    z-index: 5;
+    z-index: 15;
   }
 
   /* Content transition animation */
@@ -175,5 +189,18 @@
   .no-scrollbar {
     -ms-overflow-style: none;
     scrollbar-width: none;
+  }
+
+  @keyframes infinite-loading {
+    0% {
+      transform: translateX(-100%);
+    }
+    100% {
+      transform: translateX(100%);
+    }
+  }
+
+  .animate-infinite-loading {
+    animation: infinite-loading 1.5s infinite linear;
   }
 }
