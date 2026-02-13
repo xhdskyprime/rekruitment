@@ -707,7 +707,6 @@ const Dashboard = () => {
 
   const openPreview = (applicant: Applicant, type: string, label: string, path: string, status: string) => {
     setSelectedApplicant(applicant);
-    setSelectedSessionId(applicant.sessionId || '');
     setIsFullscreen(false);
     
     let verifiedAt, verifiedBy, rejectReason;
