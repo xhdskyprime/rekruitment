@@ -1893,9 +1893,9 @@ const Dashboard = () => {
                     </>
                   ) : (
                     <>
-                      <th className="px-8 py-5">Pelamar</th>
+                      <th className="px-8 py-5 min-w-[280px]">Pelamar</th>
                       <th className="px-6 py-5">Verifikasi Berkas</th>
-                      <th className="px-6 py-5">Status Akhir</th>
+                      <th className="px-6 py-5 text-center">Status Akhir</th>
                       <th className="px-8 py-5">Aksi</th>
                     </>
                   )}
@@ -1982,7 +1982,7 @@ const Dashboard = () => {
                               ))}
                             </div>
                           </td>
-                          <td className="px-6 py-5">
+                          <td className="px-6 py-5 text-center">
                             {app.status === 'verified' && (
                               <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700 border border-emerald-200 uppercase tracking-wider">
                                 <CheckCircle className="w-3 h-3 mr-1"/> Lolos
