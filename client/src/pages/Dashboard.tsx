@@ -1894,7 +1894,6 @@ const Dashboard = () => {
                   ) : (
                     <>
                       <th className="px-8 py-5">Pelamar</th>
-                      <th className="px-6 py-5">Posisi</th>
                       <th className="px-6 py-5">Verifikasi Berkas</th>
                       <th className="px-6 py-5">Status Akhir</th>
                       <th className="px-8 py-5">Aksi</th>
@@ -1946,14 +1945,13 @@ const Dashboard = () => {
                               )}
                               <div>
                                 <div className="text-sm font-bold text-gray-900">{app.name}</div>
-                                <div className="text-xs text-gray-400 font-medium">{app.email}</div>
+                                <div className="mt-1">
+                                  <span className="px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded-md text-[10px] font-bold border border-indigo-100 whitespace-nowrap">
+                                    {app.position}
+                                  </span>
+                                </div>
                               </div>
                             </div>
-                          </td>
-                          <td className="px-6 py-5">
-                            <span className="px-3 py-1 bg-indigo-50 text-indigo-600 rounded-full text-[11px] font-bold border border-indigo-100 whitespace-nowrap">
-                              {app.position}
-                            </span>
                           </td>
                           <td className="px-6 py-5">
                             <div className="flex flex-wrap gap-2">
