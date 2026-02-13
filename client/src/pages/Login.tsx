@@ -16,10 +16,17 @@ const Login = () => {
     setError('');
 
     try {
-      await axios.post('/admin/login', { username, password }, { withCredentials: true });
+      const response = await axios.post('/admin/login', { username, password }, { withCredentials: true });
+      console.log('Login response:', response.data);
       // Usually we'd store a token here, but for now we rely on session cookies
       navigate('/admin/dashboard');
     } catch (err: any) {
+      console.error('Login error full details:', {
+        status: err.response?.status,
+        data: err.response?.data,
+        headers: err.response?.headers,
+        config: err.config
+      });
       setError(err.response?.data?.error || 'Login gagal.');
     } finally {
       setLoading(false);
