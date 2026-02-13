@@ -35,16 +35,6 @@ app.get('/health', (req, res) => {
 // This ensures we get the real client IP instead of Cloudflare's IP
 app.set('trust proxy', 1);
 
-// Proxy route for Google Drive files - Protected (Admin only)
-app.get('/file/proxy/:id', async (req, res) => {
-    if (!req.session.adminId) {
-        console.warn(`[Security] Unauthorized access attempt to /file/proxy/${req.params.id} from IP: ${req.ip}`);
-        return res.status(401).json({ error: 'Unauthorized' });
-    }
-    const fileId = req.params.id;
-    await driveService.getFileStream(fileId, res);
-});
-
 // Security Middleware
 app.use(helmet({
     contentSecurityPolicy: false, // Disabled for simple dev setup, enable in prod
@@ -107,6 +97,32 @@ app.use(session({
 // View Engine
 app.set('view engine', 'ejs');
 
+// Proxy route for Google Drive files - Protected (Admin only)
+app.get('/file/proxy/:id', async (req, res) => {
+    if (!req.session || !req.session.adminId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    const fileId = req.params.id;
+    await driveService.getFileStream(fileId, res);
+});
+app.get('/file/meta/:id', async (req, res) => {
+    if (!req.session || !req.session.adminId) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    try {
+        const meta = await driveService.getFileMeta(req.params.id);
+        res.json({ 
+            id: meta.id, 
+            name: meta.name, 
+            mimeType: meta.mimeType, 
+            webViewLink: meta.webViewLink, 
+            webContentLink: meta.webContentLink 
+        });
+    } catch (e) {
+        res.status(404).json({ error: 'File not found' });
+    }
+});
+
 // Routes
 const indexRoutes = require('./routes/index');
 const adminRoutes = require('./routes/admin');
@@ -145,7 +161,17 @@ app.get(/(.*)/, (req, res) => {
  
     // Sync other tables (safe alter)
     await Admin.sync({ alter: true });
-    await Position.sync({ alter: true });
+    try {
+      const positionsDesc = await qi.describeTable('Positions').catch(() => ({}));
+      if (!positionsDesc.code) {
+        await qi.dropTable('Positions').catch(() => {});
+        await Position.sync({ force: true });
+      } else {
+        await Position.sync({ alter: true });
+      }
+    } catch (e) {
+      await Position.sync();
+    }
     await SystemSetting.sync({ alter: true });
     await Applicant.sync({ alter: true }); // Now FK to Sessions(id) can be created safely
  

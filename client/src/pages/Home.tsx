@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
-import { Upload, CheckCircle, AlertCircle, FileText, Send, Download, Trash2, X, Eye } from 'lucide-react';
+import { Upload, CheckCircle, AlertCircle, FileText, Send, Download, Trash2, X, Eye, Loader2 } from 'lucide-react';
 
 const Home = () => {
   const [formData, setFormData] = useState({
@@ -754,6 +754,19 @@ const Home = () => {
                     </div>
                 )}
             </div>
+          </div>
+        </div>
+      )}
+      {status === 'submitting' && (
+        <div className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center">
+          <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-sm text-center">
+            <div className="flex justify-center mb-4">
+              <div className="bg-purple-100 p-4 rounded-full">
+                <Loader2 className="w-10 h-10 text-tangerang-purple animate-spin" />
+              </div>
+            </div>
+            <h3 className="text-xl font-bold text-gray-900 mb-2">Mengirim Lamaran...</h3>
+            <p className="text-gray-600">Mohon tunggu sejenak hingga semua berkas terunggah.</p>
           </div>
         </div>
       )}

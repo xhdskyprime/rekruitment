@@ -108,6 +108,41 @@ const driveService = {
             throw error;
         }
     },
+    ensureFolder: async (name, parentId = null) => {
+        const auth = getAuth();
+        if (!auth) throw new Error("Google Auth credentials missing");
+        const drive = google.drive({ version: 'v3', auth });
+        let rootId = parentId;
+        if (!rootId && process.env.GOOGLE_DRIVE_FOLDER_ID) {
+            rootId = process.env.GOOGLE_DRIVE_FOLDER_ID.split('?')[0].trim();
+        }
+        if (!rootId) throw new Error("GOOGLE_DRIVE_FOLDER_ID is missing.");
+        const q = `name='${name.replace(/'/g, "\\'")}' and mimeType='application/vnd.google-apps.folder' and '${rootId}' in parents and trashed=false`;
+        const list = await drive.files.list({ q, fields: 'files(id,name)' });
+        if (list.data.files && list.data.files.length > 0) {
+            return list.data.files[0].id;
+        }
+        const created = await drive.files.create({
+            requestBody: {
+                name,
+                mimeType: 'application/vnd.google-apps.folder',
+                parents: [rootId]
+            },
+            fields: 'id,name'
+        });
+        return created.data.id;
+    },
+    renameFile: async (fileId, newName) => {
+        const auth = getAuth();
+        if (!auth) throw new Error("Google Auth credentials missing");
+        const drive = google.drive({ version: 'v3', auth });
+        const updated = await drive.files.update({
+            fileId,
+            requestBody: { name: newName },
+            fields: 'id,name'
+        });
+        return updated.data;
+    },
 
     getFileStream: async (fileId, res) => {
         const auth = getAuth();
@@ -116,6 +151,25 @@ const driveService = {
         const drive = google.drive({ version: 'v3', auth });
 
         try {
+            const meta = await drive.files.get({
+                fileId,
+                fields: 'name,mimeType'
+            });
+            let mimeType = meta.data.mimeType || 'application/octet-stream';
+            const name = meta.data.name || 'file';
+
+            // Fallback for PDF if mimeType is generic
+            if ((mimeType === 'application/octet-stream' || !mimeType) && name.toLowerCase().endsWith('.pdf')) {
+                mimeType = 'application/pdf';
+            }
+
+            console.log(`[DriveService] Streaming file: ${name} (${mimeType})`);
+
+            res.setHeader('Content-Type', mimeType);
+            res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(name)}"`);
+            res.setHeader('X-Content-Type-Options', 'nosniff');
+            res.setHeader('Cache-Control', 'private, max-age=0, no-cache, no-store');
+            
             const response = await drive.files.get(
                 { fileId: fileId, alt: 'media' },
                 { responseType: 'stream' }
@@ -150,6 +204,22 @@ const driveService = {
             return Buffer.from(response.data);
         } catch (error) {
             console.error('Drive Get Buffer Error:', error);
+            throw error;
+        }
+    },
+    
+    getFileMeta: async (fileId) => {
+        const auth = getAuth();
+        if (!auth) throw new Error("Google Auth credentials missing");
+        const drive = google.drive({ version: 'v3', auth });
+        try {
+            const meta = await drive.files.get({
+                fileId,
+                fields: 'id,name,mimeType,webViewLink,webContentLink'
+            });
+            return meta.data;
+        } catch (error) {
+            console.error('Drive Get Meta Error:', error);
             throw error;
         }
     }

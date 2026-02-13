@@ -24,6 +24,12 @@ export default defineConfig({
         }
       },
       '/uploads': 'http://localhost:3000'
+      ,
+      '/file': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+        secure: false,
+      }
     }
   }
 })
