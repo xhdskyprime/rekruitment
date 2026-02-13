@@ -3,7 +3,7 @@ import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { 
   Users, CheckCircle, XCircle, FileText, Pencil, 
-  LogOut, Search, Clock, Menu, LayoutDashboard, Shield, User, Printer, ChevronDown, ChevronRight, ChevronLeft, X, QrCode, Camera, CameraOff, Trash2, Briefcase, Database, Settings,
+  LogOut, Search, Clock, LayoutDashboard, Shield, User, Printer, ChevronDown, ChevronRight, ChevronLeft, X, QrCode, Camera, CameraOff, Trash2, Briefcase, Settings,
   Maximize2, Minimize2
 } from 'lucide-react';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
@@ -135,10 +135,8 @@ const Dashboard = () => {
   const [previewMime, setPreviewMime] = useState<string>('');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [rejectReasonInput, setRejectReasonInput] = useState('');
-  const [selectedSessionId, setSelectedSessionId] = useState<number | ''>('');
   const [activeTab, setActiveTab] = useState<'applicants' | 'verification' | 'users' | 'attendance' | 'positions' | 'sessions' | 'schedule' | 'settings'>('applicants');
-  const [isSidebarOpen, setSidebarOpen] = useState(true);
-  const [isMasterMenuOpen, setMasterMenuOpen] = useState(true);
+  const [isSidebarOpen] = useState(true);
   const [isStartingCamera, setIsStartingCamera] = useState(false);
   const [scheduleFilterSessionId, setScheduleFilterSessionId] = useState<number | '' | 'UNASSIGNED'>('');
   const [capacityPrompt, setCapacityPrompt] = useState<{ open: boolean, applicantId?: number, sessionId?: number, sessionName?: string, assigned?: number, capacity?: number }>({ open: false });
