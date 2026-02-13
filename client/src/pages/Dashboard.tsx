@@ -1911,7 +1911,7 @@ const Dashboard = () => {
                     <tr key={app.id} className="hover:bg-gray-50/50 transition-colors duration-200">
                       {activeTab === 'applicants' ? (
                         <>
-                          <td className="px-8 py-5 font-bold text-gray-900">{app.name}</td>
+                          <td className="px-8 py-5 font-bold text-gray-900 capitalize">{app.name}</td>
                           <td className="px-6 py-5 text-gray-600 font-mono text-xs">{app.nik}</td>
                           <td className="px-6 py-5 text-gray-600 text-sm">{app.gender}</td>
                           <td className="px-6 py-5 text-gray-600 text-sm">{app.birthPlace ? `${app.birthPlace}, ` : ''}{app.birthDate || '-'}</td>
@@ -1944,7 +1944,7 @@ const Dashboard = () => {
                                 </div>
                               )}
                               <div>
-                                <div className="text-sm font-bold text-gray-900">{app.name}</div>
+                                <div className="text-sm font-bold text-gray-900 capitalize">{app.name}</div>
                                 <div className="mt-1">
                                   <span className="px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded-md text-[10px] font-bold border border-indigo-100 whitespace-nowrap">
                                     {app.position}
@@ -1954,7 +1954,7 @@ const Dashboard = () => {
                             </div>
                           </td>
                           <td className="px-6 py-5">
-                            <div className="flex flex-wrap gap-2">
+                            <div className="flex flex-nowrap gap-1.5">
                               {[
                                 { key: 'suratLamaran', label: 'Lamaran & CV', status: app.suratLamaranStatus, path: app.suratLamaranPath },
                                 { key: 'ktp', label: 'KTP', status: app.ktpStatus, path: app.ktpPath },
@@ -1966,7 +1966,7 @@ const Dashboard = () => {
                                 <button
                                   key={file.key}
                                   onClick={() => openPreview(app, file.key, file.label, file.path!, file.status!)}
-                                  className={`px-2.5 py-1.5 text-[10px] font-bold rounded-lg border shadow-sm transition-all duration-200 flex items-center ${
+                                  className={`px-2 py-1 text-[9px] font-bold rounded-lg border shadow-sm transition-all duration-200 flex items-center whitespace-nowrap ${
                                     file.status === 'valid' 
                                       ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 hover:shadow-md' 
                                       : file.status === 'invalid' 
