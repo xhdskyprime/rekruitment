@@ -192,25 +192,15 @@ app.get(/(.*)/, (req, res) => {
       await Session.sync({ force: true });
       console.log('Sessions table recreated with primary key id');
     } else {
-      await Session.sync({ alter: true });
+      // Use standard sync for SQLite to avoid UNIQUE constraint errors during ALTER
+      await Session.sync();
     }
  
-    // Sync other tables (safe alter)
-    // Avoid alter:true for Admin to prevent SQLite UNIQUE constraint issues
+    // Sync other tables
     await Admin.sync(); 
-    try {
-      const positionsDesc = await qi.describeTable('Positions').catch(() => ({}));
-      if (!positionsDesc.code) {
-        await qi.dropTable('Positions').catch(() => {});
-        await Position.sync({ force: true });
-      } else {
-        await Position.sync({ alter: true });
-      }
-    } catch (e) {
-      await Position.sync();
-    }
-    await SystemSetting.sync({ alter: true });
-    await Applicant.sync({ alter: true }); // Now FK to Sessions(id) can be created safely
+    await SystemSetting.sync();
+    await Position.sync();
+    await Applicant.sync();
  
     // Ensure session store table exists
     if (sessionStore.sync) {

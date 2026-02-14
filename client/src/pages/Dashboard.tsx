@@ -2034,7 +2034,7 @@ const Dashboard = () => {
                                 { key: 'ijazah', label: 'Ijazah & Nilai', status: app.ijazahStatus, path: app.ijazahPath },
                                 { key: 'str', label: 'STR', status: app.strStatus, path: app.strPath },
                                 { key: 'suratPernyataan', label: 'Pernyataan', status: app.suratPernyataanStatus, path: app.suratPernyataanPath },
-                                { key: 'sertifikat', label: 'Sert', status: app.sertifikatStatus, path: app.sertifikatPath },
+                                { key: 'sertifikat', label: 'Sert (Opsional)', status: app.sertifikatStatus, path: app.sertifikatPath },
                               ].map((file) => file.path && (
                                 <button
                                   key={file.key}

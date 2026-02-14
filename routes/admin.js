@@ -275,34 +275,37 @@ router.post('/verify-file/:id', isAuthenticated, async (req, res) => {
             applicant[`${fileType}VerifiedAt`] = new Date();
             applicant[`${fileType}VerifiedBy`] = admin ? admin.username : 'Unknown';
             
-            console.log(`[Verify] Updating ${fileType} for applicant ${applicant.id} by ${applicant[`${fileType}VerifiedBy`]}`);
-            await applicant.save();
+            console.log(`[Verify] Updating ${fileType} for applicant ${applicant.id} by ${applicant[`${fileType}VerifiedBy`]} to ${status}`);
+            // DO NOT SAVE HERE, wait until global status is calculated
         }
 
         // Logic:
-        // 1. If ANY file is 'invalid' (Tidak Sesuai) -> Global status = 'rejected'
-        // 2. If ALL files are 'valid' (Sesuai) -> Global status = 'verified'
-        // 3. Otherwise -> Global status = 'pending'
+        // 1. If ANY mandatory file is 'invalid' (Tidak Sesuai) -> Global status = 'rejected'
+        // 2. If ALL mandatory files are 'valid' (Sesuai) -> Global status = 'verified'
+        // 3. Sertifikat is OPTIONAL: 
+        //    - If 'invalid', it doesn't cause auto-reject (unless other mandatory files are invalid).
+        //    - If 'pending' or 'invalid', it doesn't block 'verified' status.
+        // 4. Otherwise -> Global status = 'pending'
 
-        const statuses = [
+        const mandatoryStatuses = [
             applicant.suratLamaranStatus,
             applicant.ktpStatus,
             applicant.ijazahStatus, 
             applicant.strStatus, 
-            applicant.sertifikatStatus,
             applicant.suratPernyataanStatus
         ];
 
-        console.log(`[Verify] Statuses for applicant ${applicant.id}:`, statuses);
+        console.log(`[Verify] Mandatory statuses for applicant ${applicant.id}:`, mandatoryStatuses);
+        console.log(`[Verify] Optional status (sertifikat) for applicant ${applicant.id}:`, applicant.sertifikatStatus);
 
-        if (statuses.includes('invalid')) {
-            // Auto Reject
+        if (mandatoryStatuses.includes('invalid')) {
+            // Auto Reject if any mandatory file is invalid
             applicant.status = 'rejected';
             applicant.examCardPath = null;
-        } else if (statuses.every(s => s === 'valid')) {
-            // Auto Verify & Generate PDF
+        } else if (mandatoryStatuses.every(s => s === 'valid')) {
+            // Auto Verify if all mandatory files are valid (Sertifikat is ignored for 'verified' status)
             if (applicant.status !== 'verified') {
-                console.log(`[Verify] All files valid. Generating exam card...`);
+                console.log(`[Verify] All mandatory files valid. Current global status: ${applicant.status}. Upgrading to verified...`);
                 applicant.status = 'verified';
                 
                 // Switch to On-the-fly Generation (Stateless)
@@ -310,84 +313,25 @@ router.post('/verify-file/:id', isAuthenticated, async (req, res) => {
                 // Instead, we point examCardPath to the dynamic endpoint.
                 applicant.examCardPath = `/api/applicant/${applicant.id}/exam-card?nik=${applicant.nik}`;
                 console.log(`[Verify] Exam card path set to dynamic URL: ${applicant.examCardPath}`);
-
-                /* Deprecated: File-based generation
-                // Generate PDF
-                try {
-                    const doc = new PDFDocument();
-                    const filename = `exam_card_${applicant.id}_${Date.now()}.pdf`;
-                    const uploadDir = path.join(__dirname, '../public/uploads');
-                    
-                    // Ensure directory exists
-                    if (!fs.existsSync(uploadDir)){
-                        fs.mkdirSync(uploadDir, { recursive: true });
-                    }
-
-                    const filePath = path.join(uploadDir, filename);
-                    const writeStream = fs.createWriteStream(filePath);
-
-                    doc.pipe(writeStream);
-                    doc.fontSize(25).text('KARTU UJIAN', { align: 'center' });
-                    doc.moveDown();
-                    doc.fontSize(14).text(`Nama: ${applicant.name}`);
-                    doc.text(`Email: ${applicant.email}`);
-                    doc.text(`Posisi: ${applicant.position}`);
-                    const createdAt = applicant.createdAt ? new Date(applicant.createdAt) : new Date();
-                    const yy = String(createdAt.getFullYear()).slice(-2);
-                    const mm = String(createdAt.getMonth() + 1).padStart(2, '0');
-                    const dd = String(createdAt.getDate()).padStart(2, '0');
-                    const seq = String(applicant.id % 1000).padStart(3, '0');
-                    const posCode = (await Position.findOne({ where: { name: applicant.position } }))?.code || '00';
-                    const participantNumber = (applicant.participantNumber) || `${yy}${mm}${dd}${String(posCode).padStart(2,'0').slice(-2)}${seq}`;
-                    doc.text(`ID Peserta: ${participantNumber}`);
-                    doc.text(`Tanggal Ujian: ${new Date().toLocaleDateString()}`); 
-                    doc.moveDown();
-                    
-                    // Generate QR Code
-                    try {
-                        const qrBuffer = await bwipjs.toBuffer({
-                            bcid:        'qrcode',       // QR Code type
-                            text:        participantNumber,    // Text to encode
-                            scale:       3,               // 3x scaling factor
-                            padding:     1,               // Padding around QR Code
-                            includetext: false,            // QR Code doesn't usually show text
-                        });
-                        
-                        doc.moveDown();
-                        doc.image(qrBuffer, {
-                            fit: [100, 100], // QR Code is square
-                            align: 'center'
-                        });
-                    } catch (e) {
-                        console.error("QR Code generation error:", e);
-                    }
-
-                    doc.moveDown();
-                    doc.text('Harap bawa kartu ini saat ujian.', { align: 'center' });
-                    doc.end();
-
-                    await new Promise((resolve, reject) => {
-                        writeStream.on('finish', resolve);
-                        writeStream.on('error', reject);
-                    });
-                    
-                    applicant.examCardPath = '/uploads/' + filename;
-                    console.log(`[Verify] Exam card generated at: ${applicant.examCardPath}`);
-                } catch (pdfError) {
-                    console.error('[Verify] PDF Generation Error:', pdfError);
-                    // Don't fail the whole request, just log it? Or maybe fail?
-                    // For now, let's just log and continue, maybe user can retry
-                }
-                */
             }
         } else {
             // Still pending
+            console.log(`[Verify] Not all mandatory files are valid yet. Status remains pending.`);
             applicant.status = 'pending';
             applicant.examCardPath = null;
         }
         
+        console.log(`[Verify] Final state before save - ID: ${applicant.id}, Status: ${applicant.status}, Files:`, {
+            lamaran: applicant.suratLamaranStatus,
+            ktp: applicant.ktpStatus,
+            ijazah: applicant.ijazahStatus,
+            str: applicant.strStatus,
+            pernyataan: applicant.suratPernyataanStatus,
+            sertifikat: applicant.sertifikatStatus
+        });
+
         await applicant.save();
-        console.log(`[Verify] Applicant ${applicant.id} updated successfully. Global status: ${applicant.status}`);
+        console.log(`[Verify] Applicant ${applicant.id} saved successfully. New global status: ${applicant.status}`);
 
         res.json({ success: true, applicant });
     } catch (error) {
