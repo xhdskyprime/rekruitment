@@ -3,7 +3,7 @@ import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { 
   Users, CheckCircle, XCircle, FileText, Pencil, 
-  LogOut, Search, Clock, LayoutDashboard, Shield, User, Printer, ChevronDown, ChevronRight, ChevronLeft, X, QrCode, Camera, CameraOff, Trash2, Briefcase, Settings,
+  LogOut, Search, Clock, LayoutDashboard, User, Printer, ChevronDown, ChevronRight, ChevronLeft, X, QrCode, Camera, CameraOff, Trash2, Briefcase, Settings,
   Maximize2, Minimize2
 } from 'lucide-react';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
@@ -1461,7 +1461,7 @@ const Dashboard = () => {
                         <Briefcase className="w-5 h-5 mr-2 text-tangerang-purple" />
                         {editingPosition ? 'Edit Posisi Dilamar' : 'Tambah Master Posisi Dilamar'}
                       </h2>
-                      <form onSubmit={editingPosition ? handleUpdatePosition : handleAddPosition} className="flex flex-col md:flex-row gap-4 items-end">
+                      <form onSubmit={handleAddPosition} className="flex flex-col md:flex-row gap-4 items-end">
                         <div className="flex-1 w-full">
                           <label className="block text-sm font-medium text-gray-700 mb-1">Nama Posisi</label>
                           <input
