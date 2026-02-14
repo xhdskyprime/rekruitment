@@ -3,7 +3,7 @@ import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { 
   Users, CheckCircle, XCircle, FileText, Pencil, 
-  LogOut, Search, Clock, LayoutDashboard, Shield, User, Printer, ChevronDown, ChevronRight, ChevronLeft, X, QrCode, Camera, CameraOff, Trash2, Briefcase, Settings,
+  LogOut, Search, Clock, LayoutDashboard, User, Printer, ChevronDown, ChevronRight, ChevronLeft, X, QrCode, Camera, CameraOff, Trash2, Briefcase, Settings,
   Maximize2, Minimize2
 } from 'lucide-react';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
@@ -817,12 +817,17 @@ const Dashboard = () => {
       {/* Sidebar */}
       <aside className={`bg-indigo-700 flex flex-col fixed md:relative z-30 h-full transition-all duration-300 w-64 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0 md:w-20'}`}>
         <div className={`h-24 flex items-center px-6 ${!isSidebarOpen && 'justify-center'}`}>
-          <div className="w-10 h-10 bg-white/20 backdrop-blur-md rounded-xl flex items-center justify-center text-white shadow-lg flex-shrink-0 border border-white/30">
-            <Shield size={24} />
+          <div className="w-14 h-14 bg-white rounded-full flex items-center justify-center shadow-lg flex-shrink-0 border-2 border-white/50 overflow-hidden p-1.5">
+            <img src="/logo-rsud.png" alt="Logo RSUD" className="w-full h-full object-contain" />
           </div>
-          <span className={`ml-3 font-bold text-white text-xl tracking-tight transition-opacity duration-200 ${!isSidebarOpen && 'hidden md:hidden'}`}>
-            Admin Panel
-          </span>
+          <div className={`ml-4 flex flex-col transition-opacity duration-200 ${!isSidebarOpen && 'hidden md:hidden'}`}>
+            <span className="font-bold text-white text-lg tracking-tight leading-none mb-0.5">
+              Rekrutmen
+            </span>
+            <span className="font-medium text-white/90 text-xs tracking-tight uppercase">
+              RSUD Tigaraksa
+            </span>
+          </div>
         </div>
         
         <nav className="flex-1 py-4 space-y-1 overflow-y-auto overflow-x-hidden no-scrollbar">
@@ -833,11 +838,17 @@ const Dashboard = () => {
           )}
           <button
             onClick={() => setActiveTab('applicants')}
-            className={`w-full group ${!isSidebarOpen && 'flex justify-center'} ${
+            className={`w-full group relative ${!isSidebarOpen && 'flex justify-center'} ${
               activeTab === 'applicants' ? 'sidebar-active-item' : 'sidebar-nav-item'
             }`}
             title="Data Pelamar"
           >
+            {activeTab === 'applicants' && (
+              <>
+                <div className="curve-top" />
+                <div className="curve-bottom" />
+              </>
+            )}
             <div className={`flex items-center w-full ${!isSidebarOpen && 'justify-center px-0'} px-4 py-3 relative z-10`}>
               <LayoutDashboard className={`w-5 h-5 flex-shrink-0 ${activeTab === 'applicants' ? 'text-indigo-600' : 'text-white/70 group-hover:text-white'}`} />
               <span className={`ml-3 whitespace-nowrap ${!isSidebarOpen && 'hidden md:hidden'}`}>Data Pelamar</span>
@@ -846,12 +857,18 @@ const Dashboard = () => {
 
           <button
             onClick={() => setActiveTab('verification')}
-            className={`w-full group ${!isSidebarOpen && 'flex justify-center'} ${
+            className={`w-full group relative ${!isSidebarOpen && 'flex justify-center'} ${
               activeTab === 'verification' ? 'sidebar-active-item' : 'sidebar-nav-item'
             }`}
             title="Verifikasi Berkas"
           >
-            <div className={`flex items-center w-full ${!isSidebarOpen && 'justify-center px-0'} px-4 py-3`}>
+            {activeTab === 'verification' && (
+              <>
+                <div className="curve-top" />
+                <div className="curve-bottom" />
+              </>
+            )}
+            <div className={`flex items-center w-full ${!isSidebarOpen && 'justify-center px-0'} px-4 py-3 relative z-10`}>
               <FileText className={`w-5 h-5 flex-shrink-0 ${activeTab === 'verification' ? 'text-indigo-600' : 'text-white/70 group-hover:text-white'}`} />
               <span className={`ml-3 whitespace-nowrap ${!isSidebarOpen && 'hidden md:hidden'}`}>Verifikasi Berkas</span>
             </div>
@@ -859,12 +876,18 @@ const Dashboard = () => {
 
           <button
             onClick={() => setActiveTab('schedule')}
-            className={`w-full group ${!isSidebarOpen && 'flex justify-center'} ${
+            className={`w-full group relative ${!isSidebarOpen && 'flex justify-center'} ${
               activeTab === 'schedule' ? 'sidebar-active-item' : 'sidebar-nav-item'
             }`}
             title="Atur Jadwal"
           >
-            <div className={`flex items-center w-full ${!isSidebarOpen && 'justify-center px-0'} px-4 py-3`}>
+            {activeTab === 'schedule' && (
+              <>
+                <div className="curve-top" />
+                <div className="curve-bottom" />
+              </>
+            )}
+            <div className={`flex items-center w-full ${!isSidebarOpen && 'justify-center px-0'} px-4 py-3 relative z-10`}>
               <Clock className={`w-5 h-5 flex-shrink-0 ${activeTab === 'schedule' ? 'text-indigo-600' : 'text-white/70 group-hover:text-white'}`} />
               <span className={`ml-3 whitespace-nowrap ${!isSidebarOpen && 'hidden md:hidden'}`}>Atur Jadwal</span>
             </div>
@@ -872,12 +895,18 @@ const Dashboard = () => {
 
           <button
             onClick={() => setActiveTab('attendance')}
-            className={`w-full group ${!isSidebarOpen && 'flex justify-center'} ${
+            className={`w-full group relative ${!isSidebarOpen && 'flex justify-center'} ${
               activeTab === 'attendance' ? 'sidebar-active-item' : 'sidebar-nav-item'
             }`}
             title="Absensi Ujian"
           >
-            <div className={`flex items-center w-full ${!isSidebarOpen && 'justify-center px-0'} px-4 py-3`}>
+            {activeTab === 'attendance' && (
+              <>
+                <div className="curve-top" />
+                <div className="curve-bottom" />
+              </>
+            )}
+            <div className={`flex items-center w-full ${!isSidebarOpen && 'justify-center px-0'} px-4 py-3 relative z-10`}>
               <QrCode className={`w-5 h-5 flex-shrink-0 ${activeTab === 'attendance' ? 'text-indigo-600' : 'text-white/70 group-hover:text-white'}`} />
               <span className={`ml-3 whitespace-nowrap ${!isSidebarOpen && 'hidden md:hidden'}`}>Absensi Ujian</span>
             </div>
@@ -890,11 +919,17 @@ const Dashboard = () => {
                   <div className="px-6 py-2 text-[10px] font-bold text-white/40 uppercase tracking-widest">Master Data</div>
                   <button
                     onClick={() => setActiveTab('positions')}
-                    className={`w-full group ${
+                    className={`w-full group relative ${
                       activeTab === 'positions' ? 'sidebar-active-item' : 'sidebar-nav-item'
                     }`}
                   >
-                    <div className="flex items-center px-4 py-3">
+                    {activeTab === 'positions' && (
+                      <>
+                        <div className="curve-top" />
+                        <div className="curve-bottom" />
+                      </>
+                    )}
+                    <div className="flex items-center px-4 py-3 relative z-10">
                       <Briefcase className={`w-5 h-5 flex-shrink-0 ${activeTab === 'positions' ? 'text-indigo-600' : 'text-white/70 group-hover:text-white'}`} />
                       <span className="ml-3 whitespace-nowrap">Master Posisi</span>
                     </div>
@@ -902,11 +937,17 @@ const Dashboard = () => {
 
                   <button
                     onClick={() => setActiveTab('sessions')}
-                    className={`w-full group ${
+                    className={`w-full group relative ${
                       activeTab === 'sessions' ? 'sidebar-active-item' : 'sidebar-nav-item'
                     }`}
                   >
-                    <div className="flex items-center px-4 py-3">
+                    {activeTab === 'sessions' && (
+                      <>
+                        <div className="curve-top" />
+                        <div className="curve-bottom" />
+                      </>
+                    )}
+                    <div className="flex items-center px-4 py-3 relative z-10">
                       <Clock className={`w-5 h-5 flex-shrink-0 ${activeTab === 'sessions' ? 'text-indigo-600' : 'text-white/70 group-hover:text-white'}`} />
                       <span className="ml-3 whitespace-nowrap">Master Sesi</span>
                     </div>
@@ -914,11 +955,17 @@ const Dashboard = () => {
 
                   <button
                     onClick={() => setActiveTab('users')}
-                    className={`w-full group ${
+                    className={`w-full group relative ${
                       activeTab === 'users' ? 'sidebar-active-item' : 'sidebar-nav-item'
                     }`}
                   >
-                    <div className="flex items-center px-4 py-3">
+                    {activeTab === 'users' && (
+                      <>
+                        <div className="curve-top" />
+                        <div className="curve-bottom" />
+                      </>
+                    )}
+                    <div className="flex items-center px-4 py-3 relative z-10">
                       <Users className={`w-5 h-5 flex-shrink-0 ${activeTab === 'users' ? 'text-indigo-600' : 'text-white/70 group-hover:text-white'}`} />
                       <span className="ml-3 whitespace-nowrap">Manajemen User</span>
                     </div>
@@ -974,12 +1021,18 @@ const Dashboard = () => {
               </div>
               <button
                 onClick={() => setActiveTab('settings')}
-                className={`w-full group ${!isSidebarOpen && 'flex justify-center'} ${
+                className={`w-full group relative ${!isSidebarOpen && 'flex justify-center'} ${
                   activeTab === 'settings' ? 'sidebar-active-item' : 'sidebar-nav-item'
                 }`}
                 title="Pengaturan Website"
               >
-                <div className={`flex items-center w-full ${!isSidebarOpen && 'justify-center px-0'} px-4 py-3`}>
+                {activeTab === 'settings' && (
+                  <>
+                    <div className="curve-top" />
+                    <div className="curve-bottom" />
+                  </>
+                )}
+                <div className={`flex items-center w-full ${!isSidebarOpen && 'justify-center px-0'} px-4 py-3 relative z-10`}>
                   <Settings className={`w-5 h-5 flex-shrink-0 ${activeTab === 'settings' ? 'text-indigo-600' : 'text-white/70 group-hover:text-white'}`} />
                   <span className={`ml-3 whitespace-nowrap ${!isSidebarOpen && 'hidden md:hidden'}`}>Pengaturan Website</span>
                 </div>
@@ -1007,7 +1060,7 @@ const Dashboard = () => {
                activeTab === 'users' ? 'Manajemen User' : 'Pengaturan Website'}
             </h2>
             <p className="text-xs text-gray-400 font-bold uppercase tracking-widest">
-              Admin Panel <span className="mx-2 text-gray-300">•</span> {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+              Rekrutmen RSUD <span className="mx-2 text-gray-300">•</span> {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
             </p>
           </div>
 
@@ -1238,256 +1291,274 @@ const Dashboard = () => {
             {activeTab === 'users' || activeTab === 'positions' || activeTab === 'sessions' ? (
               <div className="space-y-6 animate-in fade-in duration-500">
                 {activeTab === 'sessions' && (
-                  <div className="bg-white p-6 rounded-2xl shadow-lg border border-gray-100">
-                    <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center">
-                      <Clock className="w-5 h-5 mr-2 text-tangerang-purple" />
-                      {editingSession ? 'Edit Sesi Ujian' : 'Master Sesi Ujian'}
-                    </h2>
-                    
-                    <form onSubmit={editingSession ? handleUpdateSession : handleAddSession} className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8 bg-gray-50 p-6 rounded-xl border border-gray-100">
-                      <div className="md:col-span-2">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Nama Sesi</label>
-                        <input
-                          type="text"
-                          required
-                          value={editingSession ? editingSession.name : newSession.name}
-                          onChange={e => editingSession ? setEditingSession({...editingSession, name: e.target.value}) : setNewSession({...newSession, name: e.target.value})}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-tangerang-purple outline-none"
-                          placeholder="Contoh: Sesi 1 - Pagi"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Tanggal</label>
-                        <input
-                          type="date"
-                          required
-                          value={editingSession ? editingSession.date : newSession.date}
-                          onChange={e => editingSession ? setEditingSession({...editingSession, date: e.target.value}) : setNewSession({...newSession, date: e.target.value})}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-tangerang-purple outline-none"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Jam Mulai</label>
-                        <input
-                          type="time"
-                          required
-                          value={editingSession ? editingSession.startTime : newSession.startTime}
-                          onChange={e => editingSession ? setEditingSession({...editingSession, startTime: e.target.value}) : setNewSession({...newSession, startTime: e.target.value})}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-tangerang-purple outline-none"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Jam Selesai</label>
-                        <input
-                          type="time"
-                          required
-                          value={editingSession ? editingSession.endTime : newSession.endTime}
-                          onChange={e => editingSession ? setEditingSession({...editingSession, endTime: e.target.value}) : setNewSession({...newSession, endTime: e.target.value})}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-tangerang-purple outline-none"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Kapasitas (Opsional)</label>
-                        <input
-                          type="number"
-                          value={editingSession ? editingSession.capacity : newSession.capacity}
-                          onChange={e => editingSession ? setEditingSession({...editingSession, capacity: parseInt(e.target.value)}) : setNewSession({...newSession, capacity: parseInt(e.target.value)})}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-tangerang-purple outline-none"
-                          placeholder="0 = Tanpa batas"
-                        />
-                      </div>
-                      <div className="md:col-span-2">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Lokasi</label>
-                        <input
-                          type="text"
-                          required
-                          value={editingSession ? editingSession.location : newSession.location}
-                          onChange={e => editingSession ? setEditingSession({...editingSession, location: e.target.value}) : setNewSession({...newSession, location: e.target.value})}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-tangerang-purple outline-none"
-                          placeholder="Contoh: Ruang Aula Lt. 2"
-                        />
-                      </div>
-                      <div className="flex gap-2 items-end">
-                        <button
-                          type="submit"
-                          className="flex-1 px-6 py-2 bg-tangerang-purple text-white rounded-lg hover:bg-tangerang-dark transition font-medium shadow-md"
-                        >
-                          {editingSession ? 'Simpan Perubahan' : 'Tambah Sesi'}
-                        </button>
-                        {editingSession && (
-                          <button
-                            type="button"
-                            onClick={() => setEditingSession(null)}
-                            className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition font-medium"
-                          >
-                            Batal
-                          </button>
-                        )}
-                      </div>
-                    </form>
-
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left">
-                        <thead className="bg-gray-50 text-gray-600 text-xs uppercase font-semibold">
-                          <tr>
-                            <th className="px-6 py-4">Nama Sesi</th>
-                            <th className="px-6 py-4">Waktu & Tempat</th>
-                            <th className="px-6 py-4">Kapasitas</th>
-                            <th className="px-6 py-4">Aksi</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                          {sessions.map(session => (
-                            <tr key={session.id} className="hover:bg-gray-50 transition">
-                              <td className="px-6 py-4">
-                                <div className="font-bold text-gray-900">{session.name}</div>
-                              </td>
-                              <td className="px-6 py-4">
-                                <div className="flex items-center text-sm text-gray-700 mb-1">
-                                  <Clock className="w-3.5 h-3.5 mr-1.5 text-tangerang-purple" />
-                                  {new Date(session.date).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-                                </div>
-                                <div className="text-sm text-gray-600">
-                                  {session.startTime} - {session.endTime} WIB
-                                </div>
-                                <div className="text-sm text-gray-500 italic mt-1">
-                                  {session.location}
-                                </div>
-                              </td>
-                              <td className="px-6 py-4 text-sm font-medium text-gray-700">
-                                {session.capacity > 0 ? `${session.capacity} Peserta` : 'Tidak Terbatas'}
-                              </td>
-                              <td className="px-6 py-4">
-                                <div className="flex gap-2">
-                                  <button
-                                    onClick={() => setEditingSession(session)}
-                                    className="text-tangerang-purple hover:text-tangerang-dark p-1.5 rounded-full hover:bg-purple-50 transition"
-                                    title="Edit Sesi"
-                                  >
-                                    <Pencil className="w-4 h-4" />
-                                  </button>
-                                  <button
-                                    onClick={() => handleDeleteSession(session.id)}
-                                    className="text-red-500 hover:text-red-700 p-1.5 rounded-full hover:bg-red-50 transition"
-                                    title="Hapus Sesi"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
-                          {sessions.length === 0 && (
-                            <tr>
-                              <td colSpan={4} className="px-6 py-12 text-center text-gray-500">
-                                <Clock className="w-12 h-12 mx-auto mb-3 text-gray-200" />
-                                Belum ada sesi ujian yang dibuat.
-                              </td>
-                            </tr>
-                          )}
-                        </tbody>
-                      </table>
+                  <>
+                    <div className="bg-white p-6 rounded-2xl shadow-lg border border-gray-100">
+                      <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center">
+                        <Clock className="w-5 h-5 mr-2 text-tangerang-purple" />
+                        {editingSession ? 'Edit Sesi Ujian' : 'Tambah Master Sesi Ujian'}
+                      </h2>
+                      
+                      <form onSubmit={editingSession ? handleUpdateSession : handleAddSession} className="flex flex-col gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div className="md:col-span-2">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Nama Sesi</label>
+                            <input
+                              type="text"
+                              required
+                              value={editingSession ? editingSession.name : newSession.name}
+                              onChange={e => editingSession ? setEditingSession({...editingSession, name: e.target.value}) : setNewSession({...newSession, name: e.target.value})}
+                              className="w-full px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-tangerang-purple focus:border-transparent outline-none transition-all h-[35px] text-sm"
+                              placeholder="Contoh: Sesi 1 - Pagi"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Tanggal</label>
+                            <input
+                              type="date"
+                              required
+                              value={editingSession ? editingSession.date : newSession.date}
+                              onChange={e => editingSession ? setEditingSession({...editingSession, date: e.target.value}) : setNewSession({...newSession, date: e.target.value})}
+                              className="w-full px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-tangerang-purple focus:border-transparent outline-none transition-all h-[35px] text-sm"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Jam Mulai</label>
+                            <input
+                              type="time"
+                              required
+                              value={editingSession ? editingSession.startTime : newSession.startTime}
+                              onChange={e => editingSession ? setEditingSession({...editingSession, startTime: e.target.value}) : setNewSession({...newSession, startTime: e.target.value})}
+                              className="w-full px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-tangerang-purple focus:border-transparent outline-none transition-all h-[35px] text-sm"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Jam Selesai</label>
+                            <input
+                              type="time"
+                              required
+                              value={editingSession ? editingSession.endTime : newSession.endTime}
+                              onChange={e => editingSession ? setEditingSession({...editingSession, endTime: e.target.value}) : setNewSession({...newSession, endTime: e.target.value})}
+                              className="w-full px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-tangerang-purple focus:border-transparent outline-none transition-all h-[35px] text-sm"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Kapasitas (Opsional)</label>
+                            <input
+                              type="number"
+                              value={editingSession ? editingSession.capacity : newSession.capacity}
+                              onChange={e => editingSession ? setEditingSession({...editingSession, capacity: parseInt(e.target.value)}) : setNewSession({...newSession, capacity: parseInt(e.target.value)})}
+                              className="w-full px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-tangerang-purple focus:border-transparent outline-none transition-all h-[35px] text-sm"
+                              placeholder="0 = Tanpa batas"
+                            />
+                          </div>
+                        </div>
+                        <div className="flex flex-col md:flex-row gap-4 items-end">
+                          <div className="flex-1 w-full">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Lokasi</label>
+                            <input
+                              type="text"
+                              required
+                              value={editingSession ? editingSession.location : newSession.location}
+                              onChange={e => editingSession ? setEditingSession({...editingSession, location: e.target.value}) : setNewSession({...newSession, location: e.target.value})}
+                              className="w-full px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-tangerang-purple focus:border-transparent outline-none transition-all h-[35px] text-sm"
+                              placeholder="Contoh: Ruang Aula Lt. 2"
+                            />
+                          </div>
+                          <div className="flex-none w-full md:w-48 flex gap-2">
+                            <button
+                              type="submit"
+                              className="flex-1 px-6 bg-tangerang-purple text-white rounded-lg hover:bg-tangerang-dark transition font-medium shadow-md hover:shadow-lg h-[35px] text-sm flex items-center justify-center"
+                            >
+                              {editingSession ? 'Simpan' : 'Tambah'}
+                            </button>
+                            {editingSession && (
+                              <button
+                                type="button"
+                                onClick={() => setEditingSession(null)}
+                                className="px-6 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition font-medium h-[35px] text-sm"
+                              >
+                                Batal
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </form>
                     </div>
-                  </div>
+
+                    <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+                      <div className="p-6 border-b border-gray-100">
+                        <h2 className="text-lg font-bold text-gray-800">Daftar Master Sesi Ujian</h2>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left">
+                          <thead className="bg-gray-50 text-gray-600 text-xs uppercase font-semibold">
+                            <tr>
+                              <th className="px-6 py-4">Nama Sesi</th>
+                              <th className="px-6 py-4">Waktu & Tempat</th>
+                              <th className="px-6 py-4">Kapasitas</th>
+                              <th className="px-6 py-4 text-center">Aksi</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100">
+                            {sessions.map(session => (
+                              <tr key={session.id} className="hover:bg-gray-50 transition">
+                                <td className="px-6 py-4">
+                                  <div className="font-bold text-gray-900">{session.name}</div>
+                                </td>
+                                <td className="px-6 py-4">
+                                  <div className="flex items-center text-sm text-gray-700 mb-1">
+                                    <Clock className="w-3.5 h-3.5 mr-1.5 text-tangerang-purple" />
+                                    {new Date(session.date).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                                  </div>
+                                  <div className="text-sm text-gray-600">
+                                    {session.startTime} - {session.endTime} WIB
+                                  </div>
+                                  <div className="text-sm text-gray-500 italic mt-1">
+                                    {session.location}
+                                  </div>
+                                </td>
+                                <td className="px-6 py-4 text-sm font-medium text-gray-700">
+                                  {session.capacity > 0 ? `${session.capacity} Peserta` : 'Tidak Terbatas'}
+                                </td>
+                                <td className="px-6 py-4">
+                                  <div className="flex justify-center gap-2">
+                                    <button
+                                      onClick={() => setEditingSession(session)}
+                                      className="text-tangerang-purple hover:text-tangerang-dark p-1.5 rounded-full hover:bg-purple-50 transition"
+                                      title="Edit Sesi"
+                                    >
+                                      <Pencil className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeleteSession(session.id)}
+                                      className="text-red-500 hover:text-red-700 p-1.5 rounded-full hover:bg-red-50 transition"
+                                      title="Hapus Sesi"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                            {sessions.length === 0 && (
+                              <tr>
+                                <td colSpan={4} className="px-6 py-12 text-center text-gray-500">
+                                  <Clock className="w-12 h-12 mx-auto mb-3 text-gray-200" />
+                                  Belum ada sesi ujian yang dibuat.
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </>
                 )}
                 {activeTab === 'positions' && (
-                  <div className="bg-white p-6 rounded-2xl shadow-lg border border-gray-100">
-                    <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center">
-                      <Shield className="w-5 h-5 mr-2 text-tangerang-purple" />
-                      {editingPosition ? 'Edit Posisi Dilamar' : 'Master Posisi Dilamar'}
-                    </h2>
-                    <form onSubmit={handleAddPosition} className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end mb-6">
-                      <div className="w-full">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Nama Posisi</label>
-                        <input
-                          type="text"
-                          required
-                          value={newPosition}
-                          onChange={e => setNewPosition(e.target.value)}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-tangerang-purple focus:border-transparent outline-none transition-all"
-                          placeholder="Contoh: Perawat, Bidan, Apoteker"
-                        />
-                      </div>
-                      <div className="w-full">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Kode Posisi (2 digit)</label>
-                        <input
-                          type="text"
-                          required
-                          value={newPositionCode}
-                          onChange={e => {
-                            const val = e.target.value.replace(/\D/g, '').slice(0, 2);
-                            setNewPositionCode(val);
-                          }}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-tangerang-purple focus:border-transparent outline-none transition-all font-mono"
-                          placeholder="Contoh: 01, 02, 03"
-                        />
-                      </div>
-                      <div className="flex gap-2 md:col-span-2">
-                        <button
-                          type="submit"
-                          className="px-6 py-2 bg-tangerang-purple text-white rounded-lg hover:bg-tangerang-dark transition font-medium shadow-md hover:shadow-lg"
-                        >
-                          {editingPosition ? 'Simpan Perubahan' : 'Tambah Posisi'}
-                        </button>
-                        {editingPosition && (
+                  <div className="space-y-6">
+                    <div className="bg-white p-6 rounded-2xl shadow-lg border border-gray-100">
+                      <h2 className="text-lg font-bold text-gray-800 mb-4 flex items-center">
+                        <Briefcase className="w-5 h-5 mr-2 text-tangerang-purple" />
+                        {editingPosition ? 'Edit Posisi Dilamar' : 'Tambah Master Posisi Dilamar'}
+                      </h2>
+                      <form onSubmit={handleAddPosition} className="flex flex-col md:flex-row gap-4 items-end">
+                        <div className="flex-1 w-full">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Nama Posisi</label>
+                          <input
+                            type="text"
+                            required
+                            value={newPosition}
+                            onChange={e => setNewPosition(e.target.value)}
+                            className="w-full px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-tangerang-purple focus:border-transparent outline-none transition-all h-[35px] text-sm"
+                            placeholder="Contoh: Perawat, Bidan, Apoteker"
+                          />
+                        </div>
+                        <div className="flex-1 w-full">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Kode Posisi (2 digit)</label>
+                          <input
+                            type="text"
+                            required
+                            value={newPositionCode}
+                            onChange={e => {
+                              const val = e.target.value.replace(/\D/g, '').slice(0, 2);
+                              setNewPositionCode(val);
+                            }}
+                            className="w-full px-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-tangerang-purple focus:border-transparent outline-none transition-all font-mono h-[35px] text-sm"
+                            placeholder="Contoh: 01, 02, 03"
+                          />
+                        </div>
+                        <div className="flex-none w-full md:w-48 flex gap-2">
                           <button
-                            type="button"
-                            onClick={cancelEditPosition}
-                            className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition font-medium"
+                            type="submit"
+                            className="flex-1 px-6 bg-tangerang-purple text-white rounded-lg hover:bg-tangerang-dark transition font-medium shadow-md hover:shadow-lg h-[35px] text-sm flex items-center justify-center"
                           >
-                            Batal
+                            {editingPosition ? 'Simpan' : 'Tambah'}
                           </button>
-                        )}
-                      </div>
-                    </form>
-
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left">
-                        <thead className="bg-gray-50 text-gray-600 text-xs uppercase font-semibold">
-                          <tr>
-                            <th className="px-6 py-4">Nama Posisi</th>
-                            <th className="px-6 py-4">Kode</th>
-                            <th className="px-6 py-4">Dibuat Pada</th>
-                            <th className="px-6 py-4">Aksi</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                          {positions.map(pos => (
-                            <tr key={pos.id} className="hover:bg-gray-50 transition">
-                              <td className="px-6 py-4 font-semibold text-gray-900">{pos.name}</td>
-                              <td className="px-6 py-4 text-gray-700 font-mono">{pos.code || '-'}</td>
-                              <td className="px-6 py-4 text-gray-500 text-sm">
-                                {new Date(pos.createdAt).toLocaleDateString('id-ID')}
-                              </td>
-                              <td className="px-6 py-4">
-                                {currentUserRole === 'superadmin' && (
-                                <div className="flex items-center gap-2">
-                                  <button
-                                    onClick={() => startEditPosition(pos)}
-                                    className="text-gray-700 hover:text-tangerang-purple p-1.5 rounded-full hover:bg-purple-50 transition"
-                                    title="Edit Posisi"
-                                  >
-                                    <Pencil className="w-4 h-4" />
-                                  </button>
-                                  <button
-                                    onClick={() => handleDeletePosition(pos.id)}
-                                    className="text-red-500 hover:text-red-700 p-1.5 rounded-full hover:bg-red-50 transition"
-                                    title="Hapus Posisi"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </button>
-                                </div>
-                                )}
-                              </td>
-                            </tr>
-                          ))}
-                          {positions.length === 0 && (
-                            <tr>
-                              <td colSpan={3} className="px-6 py-8 text-center text-gray-500">Belum ada posisi.</td>
-                            </tr>
+                          {editingPosition && (
+                            <button
+                              type="button"
+                              onClick={cancelEditPosition}
+                              className="px-6 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition font-medium h-[35px] text-sm"
+                            >
+                              Batal
+                            </button>
                           )}
-                        </tbody>
-                      </table>
+                        </div>
+                      </form>
+                    </div>
+
+                    <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+                      <div className="p-6 border-b border-gray-100">
+                        <h2 className="text-lg font-bold text-gray-800">Daftar Master Posisi</h2>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left">
+                          <thead className="bg-gray-50 text-gray-600 text-xs uppercase font-semibold">
+                            <tr>
+                              <th className="px-6 py-4">Nama Posisi</th>
+                              <th className="px-6 py-4">Kode</th>
+                              <th className="px-6 py-4">Dibuat Pada</th>
+                              <th className="px-6 py-4 text-center">Aksi</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100">
+                            {positions.map(pos => (
+                              <tr key={pos.id} className="hover:bg-gray-50 transition">
+                                <td className="px-6 py-4 font-semibold text-gray-900">{pos.name}</td>
+                                <td className="px-6 py-4 text-gray-700 font-mono">{pos.code || '-'}</td>
+                                <td className="px-6 py-4 text-gray-500 text-sm">
+                                  {new Date(pos.createdAt).toLocaleDateString('id-ID')}
+                                </td>
+                                <td className="px-6 py-4">
+                                  {currentUserRole === 'superadmin' && (
+                                  <div className="flex items-center justify-center gap-2">
+                                    <button
+                                      onClick={() => startEditPosition(pos)}
+                                      className="text-gray-700 hover:text-tangerang-purple p-1.5 rounded-full hover:bg-purple-50 transition"
+                                      title="Edit Posisi"
+                                    >
+                                      <Pencil className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeletePosition(pos.id)}
+                                      className="text-red-500 hover:text-red-700 p-1.5 rounded-full hover:bg-red-50 transition"
+                                      title="Hapus Posisi"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                            {positions.length === 0 && (
+                              <tr>
+                                <td colSpan={4} className="px-6 py-8 text-center text-gray-500">Belum ada posisi.</td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -1507,7 +1578,7 @@ const Dashboard = () => {
                         required
                         value={newUser.username}
                         onChange={e => setNewUser({...newUser, username: e.target.value})}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-tangerang-purple focus:border-transparent outline-none transition-all"
+                        className="w-full px-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-tangerang-purple focus:border-transparent outline-none transition-all h-[35px] text-sm"
                         placeholder="Masukkan username"
                       />
                     </div>
@@ -1518,7 +1589,7 @@ const Dashboard = () => {
                         required={!editingUser}
                         value={newUser.password}
                         onChange={e => setNewUser({...newUser, password: e.target.value})}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-tangerang-purple focus:border-transparent outline-none transition-all"
+                        className="w-full px-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-tangerang-purple focus:border-transparent outline-none transition-all h-[35px] text-sm"
                         placeholder={editingUser ? 'Kosongkan jika tidak diubah' : 'Masukkan password'}
                       />
                     </div>
@@ -1527,18 +1598,20 @@ const Dashboard = () => {
                       <select
                         value={newUser.role}
                         onChange={e => setNewUser({...newUser, role: e.target.value as 'superadmin' | 'verificator'})}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-tangerang-purple focus:border-transparent outline-none transition-all"
+                        className="w-full px-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-tangerang-purple focus:border-transparent outline-none transition-all h-[35px] text-sm py-0"
                       >
                         <option value="verificator">Verificator</option>
                         <option value="superadmin">Superadmin</option>
                       </select>
                     </div>
-                    <button
-                      type="submit"
-                      className="px-6 py-2 bg-tangerang-purple text-white rounded-lg hover:bg-tangerang-dark transition font-medium shadow-md hover:shadow-lg"
-                    >
-                      {editingUser ? 'Simpan Perubahan' : 'Tambah'}
-                    </button>
+                    <div className="flex-none w-full md:w-48">
+                      <button
+                        type="submit"
+                        className="w-full px-6 bg-tangerang-purple text-white rounded-lg hover:bg-tangerang-dark transition font-medium shadow-md hover:shadow-lg h-[35px] text-sm flex items-center justify-center"
+                      >
+                        {editingUser ? 'Simpan Perubahan' : 'Tambah'}
+                      </button>
+                    </div>
                     {editingUser && (
                       <button
                         type="button"
@@ -1564,7 +1637,7 @@ const Dashboard = () => {
                           <th className="px-6 py-4">Username</th>
                           <th className="px-6 py-4">Role</th>
                           <th className="px-6 py-4">Dibuat Pada</th>
-                          <th className="px-6 py-4">Aksi</th>
+                          <th className="px-6 py-4 text-center">Aksi</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100">
@@ -1597,7 +1670,7 @@ const Dashboard = () => {
                             </td>
                             <td className="px-6 py-4">
                               {currentUserRole === 'superadmin' && (
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center justify-center gap-2">
                                 <button
                                   onClick={() => startEditUser(user)}
                                   className="text-gray-700 hover:text-tangerang-purple p-1.5 rounded-full hover:bg-purple-50 transition"
@@ -1893,10 +1966,9 @@ const Dashboard = () => {
                     </>
                   ) : (
                     <>
-                      <th className="px-8 py-5">Pelamar</th>
-                      <th className="px-6 py-5">Posisi</th>
+                      <th className="px-8 py-5 min-w-[280px]">Pelamar</th>
                       <th className="px-6 py-5">Verifikasi Berkas</th>
-                      <th className="px-6 py-5">Status Akhir</th>
+                      <th className="px-6 py-5 text-center">Status Akhir</th>
                       <th className="px-8 py-5">Aksi</th>
                     </>
                   )}
@@ -1912,7 +1984,7 @@ const Dashboard = () => {
                     <tr key={app.id} className="hover:bg-gray-50/50 transition-colors duration-200">
                       {activeTab === 'applicants' ? (
                         <>
-                          <td className="px-8 py-5 font-bold text-gray-900">{app.name}</td>
+                          <td className="px-8 py-5 font-bold text-gray-900 capitalize">{app.name}</td>
                           <td className="px-6 py-5 text-gray-600 font-mono text-xs">{app.nik}</td>
                           <td className="px-6 py-5 text-gray-600 text-sm">{app.gender}</td>
                           <td className="px-6 py-5 text-gray-600 text-sm">{app.birthPlace ? `${app.birthPlace}, ` : ''}{app.birthDate || '-'}</td>
@@ -1945,18 +2017,17 @@ const Dashboard = () => {
                                 </div>
                               )}
                               <div>
-                                <div className="text-sm font-bold text-gray-900">{app.name}</div>
-                                <div className="text-xs text-gray-400 font-medium">{app.email}</div>
+                                <div className="text-sm font-bold text-gray-900 capitalize">{app.name}</div>
+                                <div className="mt-1">
+                                  <span className="px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded-md text-[10px] font-bold border border-indigo-100 whitespace-nowrap">
+                                    {app.position}
+                                  </span>
+                                </div>
                               </div>
                             </div>
                           </td>
                           <td className="px-6 py-5">
-                            <span className="px-3 py-1 bg-indigo-50 text-indigo-600 rounded-full text-[11px] font-bold border border-indigo-100 whitespace-nowrap">
-                              {app.position}
-                            </span>
-                          </td>
-                          <td className="px-6 py-5">
-                            <div className="flex flex-wrap gap-2">
+                            <div className="flex flex-nowrap gap-1.5">
                               {[
                                 { key: 'suratLamaran', label: 'Lamaran & CV', status: app.suratLamaranStatus, path: app.suratLamaranPath },
                                 { key: 'ktp', label: 'KTP', status: app.ktpStatus, path: app.ktpPath },
@@ -1968,7 +2039,7 @@ const Dashboard = () => {
                                 <button
                                   key={file.key}
                                   onClick={() => openPreview(app, file.key, file.label, file.path!, file.status!)}
-                                  className={`px-2.5 py-1.5 text-[10px] font-bold rounded-lg border shadow-sm transition-all duration-200 flex items-center ${
+                                  className={`px-2 py-1 text-[9px] font-bold rounded-lg border shadow-sm transition-all duration-200 flex items-center whitespace-nowrap ${
                                     file.status === 'valid' 
                                       ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 hover:shadow-md' 
                                       : file.status === 'invalid' 
@@ -1984,7 +2055,7 @@ const Dashboard = () => {
                               ))}
                             </div>
                           </td>
-                          <td className="px-6 py-5">
+                          <td className="px-6 py-5 text-center">
                             {app.status === 'verified' && (
                               <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700 border border-emerald-200 uppercase tracking-wider">
                                 <CheckCircle className="w-3 h-3 mr-1"/> Lolos

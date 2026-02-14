@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
+import { Turnstile } from '@marsidev/react-turnstile';
 import { Upload, CheckCircle, AlertCircle, FileText, Send, Download, Trash2, X, Eye, Loader2 } from 'lucide-react';
 
 const Home = () => {
@@ -35,6 +36,41 @@ const Home = () => {
   const [positions, setPositions] = useState<{ id: number, name: string }[]>([]);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [registeredId, setRegisteredId] = useState<number | null>(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+
+  // Constants for Date Picker
+  const years = Array.from({ length: 100 }, (_, i) => new Date().getFullYear() - i);
+  const months = [
+    'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+  ];
+
+  const handleDateSelect = (day: number, month: number, year: number) => {
+    const formattedDate = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    setFormData(prev => ({ ...prev, birthDate: formattedDate }));
+    setShowDatePicker(false);
+    
+    // Trigger validation logic for age if needed
+    const bDate = new Date(formattedDate);
+    const today = new Date();
+    const minAgeDate = new Date(today.getFullYear() - 18, today.getMonth(), today.getDate());
+    const maxAgeDate = new Date(today.getFullYear() - 35, today.getMonth(), today.getDate());
+
+    if (bDate > minAgeDate || bDate < maxAgeDate) {
+      setShowAgeWarning(true);
+      setFormData(prev => ({ ...prev, birthDate: '' }));
+    } else {
+      setShowAgeWarning(false);
+      if (errors.birthDate) {
+        setErrors(prev => {
+          const newErrors = { ...prev };
+          delete newErrors.birthDate;
+          return newErrors;
+        });
+      }
+    }
+  };
 
   // File Preview State
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -196,7 +232,17 @@ const Home = () => {
         });
       }
 
-      // Validasi Ukuran File
+      // Validasi Ukuran & Tipe File
+      const isPasFoto = name === 'pasFoto';
+      const allowedTypes = isPasFoto ? ['image/jpeg', 'image/jpg', 'image/png'] : ['application/pdf'];
+      const allowedExt = isPasFoto ? 'Gambar (JPG/PNG)' : 'PDF';
+
+      if (!allowedTypes.includes(file.type)) {
+        alert(`Tipe file tidak valid. Silakan upload file format ${allowedExt}.`);
+        e.target.value = ''; // Reset input file
+        return;
+      }
+
       const maxSize = name === 'sertifikat' ? 2 * 1024 * 1024 : 1 * 1024 * 1024;
       const maxSizeLabel = name === 'sertifikat' ? '2MB' : '1MB';
 
@@ -220,10 +266,19 @@ const Home = () => {
     }
 
     console.log('Submitting form data:', formData); // Debugging
+
+    // --- Turnstile Validation ---
+    if (!turnstileToken) {
+      setErrors(prev => ({ ...prev, turnstile: 'Harap selesaikan verifikasi keamanan.' }));
+      return;
+    }
+
     setStatus('submitting');
     setErrorMessage('');
 
     const data = new FormData();
+    // Add turnstile token
+    data.append('cf-turnstile-response', turnstileToken);
     data.append('name', formData.name);
     data.append('nik', formData.nik);
     data.append('gender', formData.gender);
@@ -417,14 +472,103 @@ const Home = () => {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Tanggal Lahir <span className="text-xs text-gray-500 font-normal">(Max 35 Tahun)</span></label>
-                    <input 
-                      type="date" 
-                      name="birthDate" 
-                      required
-                      className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-tangerang-purple focus:border-transparent transition ${errors.birthDate ? 'border-red-500 bg-red-50' : 'border-gray-300'}`}
-                      value={formData.birthDate}
-                      onChange={handleInputChange}
-                    />
+                    <div className="relative">
+                      <input 
+                        type="text"
+                        name="birthDate" 
+                        readOnly
+                        required
+                        placeholder="Pilih Tanggal"
+                        onClick={() => setShowDatePicker(!showDatePicker)}
+                        className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-tangerang-purple focus:border-transparent transition cursor-pointer bg-white ${errors.birthDate ? 'border-red-500 bg-red-50' : 'border-gray-300'} ${!formData.birthDate ? 'text-gray-400' : 'text-gray-700'}`}
+                        value={formData.birthDate ? new Date(formData.birthDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : ''}
+                      />
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                      </div>
+
+                      {showDatePicker && (
+                        <div className="absolute z-50 mt-2 p-4 bg-white rounded-xl shadow-2xl border border-gray-100 w-72 left-0 sm:right-0 sm:left-auto">
+                          <div className="flex flex-col gap-3">
+                            <div className="flex gap-2">
+                              <select 
+                                className="flex-1 px-2 py-1 border rounded bg-gray-50 text-sm focus:ring-1 focus:ring-tangerang-purple outline-none"
+                                value={formData.birthDate ? new Date(formData.birthDate).getMonth() : new Date().getMonth()}
+                                onChange={(e) => {
+                                  const current = formData.birthDate ? new Date(formData.birthDate) : new Date();
+                                  handleDateSelect(current.getDate(), parseInt(e.target.value), current.getFullYear());
+                                  setShowDatePicker(true);
+                                }}
+                              >
+                                {months.map((month, idx) => (
+                                  <option key={month} value={idx}>{month}</option>
+                                ))}
+                              </select>
+                              <select 
+                                className="w-24 px-2 py-1 border rounded bg-gray-50 text-sm focus:ring-1 focus:ring-tangerang-purple outline-none"
+                                value={formData.birthDate ? new Date(formData.birthDate).getFullYear() : new Date().getFullYear()}
+                                onChange={(e) => {
+                                  const current = formData.birthDate ? new Date(formData.birthDate) : new Date();
+                                  handleDateSelect(current.getDate(), current.getMonth(), parseInt(e.target.value));
+                                  setShowDatePicker(true);
+                                }}
+                              >
+                                {years.map(year => (
+                                  <option key={year} value={year}>{year}</option>
+                                ))}
+                              </select>
+                            </div>
+                            
+                            <div className="grid grid-cols-7 gap-1 text-center mb-1">
+                              {['M', 'S', 'S', 'R', 'K', 'J', 'S'].map(d => (
+                                <div key={d} className="text-[10px] font-bold text-gray-400">{d}</div>
+                              ))}
+                            </div>
+
+                            <div className="grid grid-cols-7 gap-1">
+                              {Array.from({ length: new Date(
+                                formData.birthDate ? new Date(formData.birthDate).getFullYear() : new Date().getFullYear(),
+                                formData.birthDate ? new Date(formData.birthDate).getMonth() : new Date().getMonth(),
+                                1
+                              ).getDay() }, (_, i) => (
+                                <div key={`empty-${i}`} />
+                              ))}
+                              {Array.from({ length: new Date(
+                                formData.birthDate ? new Date(formData.birthDate).getFullYear() : new Date().getFullYear(),
+                                (formData.birthDate ? new Date(formData.birthDate).getMonth() : new Date().getMonth()) + 1,
+                                0
+                              ).getDate() }, (_, i) => {
+                                const day = i + 1;
+                                const isSelected = formData.birthDate && new Date(formData.birthDate).getDate() === day;
+                                return (
+                                  <button
+                                    key={day}
+                                    type="button"
+                                    onClick={() => handleDateSelect(
+                                      day, 
+                                      formData.birthDate ? new Date(formData.birthDate).getMonth() : new Date().getMonth(),
+                                      formData.birthDate ? new Date(formData.birthDate).getFullYear() : new Date().getFullYear()
+                                    )}
+                                    className={`h-8 w-8 text-xs rounded-full flex items-center justify-center transition-colors ${isSelected ? 'bg-tangerang-purple text-white font-bold' : 'hover:bg-purple-50 text-gray-700'}`}
+                                  >
+                                    {day}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                            <button 
+                              type="button"
+                              onClick={() => setShowDatePicker(false)}
+                              className="w-full py-2 text-xs font-medium text-tangerang-purple hover:bg-purple-50 rounded-lg transition-colors border border-purple-100"
+                            >
+                              Tutup
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                     {errors.birthDate && <p className="text-red-500 text-xs mt-1">{errors.birthDate}</p>}
                   </div>
               </div>
@@ -565,7 +709,7 @@ const Home = () => {
                     <div className="text-sm text-gray-600">
                       <span className="font-medium text-tangerang-purple">Upload file</span> atau drag and drop
                     </div>
-                    <p className="text-xs text-gray-500">JPG, PNG maks 1MB</p>
+                    <p className="text-xs text-gray-500">JPG, JPEG, PNG maks 1MB</p>
                     <p className="text-xs text-gray-500 font-medium mt-2 bg-gray-100 py-1 px-2 rounded-full inline-block">
                       Berpakaian Rapih (Background Merah/Biru)
                     </p>
@@ -693,13 +837,36 @@ const Home = () => {
                             required={field.required}
                             className="hidden" 
                             onChange={handleFileChange}
-                            accept=".pdf,.jpg,.jpeg,.png"
+                            accept=".pdf"
                           />
                         </label>
                       </div>
                     </div>
                   </div>
                 ))}
+                
+                {/* Turnstile Positioned below documents */}
+                <div className="flex justify-end mt-2">
+                  <div className="transform scale-90 origin-right">
+                    <Turnstile 
+                      siteKey={import.meta.env.VITE_TURNSTILE_SITE_KEY || '0x4AAAAAACbp2T-DsJ_s1VfZ'} 
+                      onSuccess={(token) => {
+                        setTurnstileToken(token);
+                        if (errors.turnstile) {
+                          setErrors(prev => {
+                            const newErrors = { ...prev };
+                            delete newErrors.turnstile;
+                            return newErrors;
+                          });
+                        }
+                      }}
+                      options={{
+                        theme: 'light'
+                      }}
+                    />
+                    {errors.turnstile && <p className="text-red-500 text-xs mt-1 text-right">{errors.turnstile}</p>}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -708,7 +875,7 @@ const Home = () => {
             <button 
               type="submit" 
               disabled={status === 'submitting'}
-              className="flex items-center bg-tangerang-purple text-white px-8 py-3 rounded-xl font-semibold shadow-lg shadow-purple-200 hover:bg-tangerang-light hover:scale-[1.02] active:scale-95 transition disabled:opacity-70 disabled:cursor-not-allowed"
+              className="flex items-center bg-tangerang-purple text-white px-8 py-3 rounded-xl font-semibold shadow-lg shadow-purple-200 hover:bg-tangerang-light hover:scale-[1.02] active:scale-95 transition disabled:opacity-70 disabled:cursor-not-allowed w-full md:w-auto justify-center"
             >
               {status === 'submitting' ? (
                 <>Loading...</>
@@ -758,15 +925,23 @@ const Home = () => {
         </div>
       )}
       {status === 'submitting' && (
-        <div className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center">
-          <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-sm text-center">
-            <div className="flex justify-center mb-4">
-              <div className="bg-purple-100 p-4 rounded-full">
-                <Loader2 className="w-10 h-10 text-tangerang-purple animate-spin" />
+        <div className="fixed inset-0 z-[70] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl p-10 w-full max-w-sm text-center transform animate-in fade-in zoom-in duration-300">
+            <div className="flex justify-center mb-8 relative">
+              <div className="absolute inset-0 bg-tangerang-purple/20 rounded-full blur-xl animate-pulse"></div>
+              <div className="bg-gradient-to-tr from-tangerang-purple to-tangerang-light p-5 rounded-full relative shadow-lg shadow-purple-200">
+                <Loader2 className="w-12 h-12 text-white animate-spin" />
               </div>
             </div>
-            <h3 className="text-xl font-bold text-gray-900 mb-2">Mengirim Lamaran...</h3>
-            <p className="text-gray-600">Mohon tunggu sejenak hingga semua berkas terunggah.</p>
+            <h3 className="text-2xl font-bold text-gray-900 mb-3 tracking-tight">Mengirim Lamaran</h3>
+            <div className="space-y-3">
+              <p className="text-gray-600 leading-relaxed">
+                Mohon tunggu sejenak hingga semua berkas <span className="font-semibold text-tangerang-purple">terkirim</span>.
+              </p>
+              <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden">
+                <div className="bg-tangerang-purple h-full w-2/3 rounded-full animate-infinite-loading"></div>
+              </div>
+            </div>
           </div>
         </div>
       )}
