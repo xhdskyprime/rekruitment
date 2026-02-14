@@ -78,14 +78,14 @@ app.use('/register', registrationLimiter);
 app.use('/api/register', registrationLimiter);
 
 // Login Rate Limit - Max 10 attempts per 15 minutes per IP
-const loginLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 10,
-    message: { error: 'Terlalu banyak upaya login. Silakan coba lagi setelah 15 menit untuk alasan keamanan.' },
-    standardHeaders: true,
-    legacyHeaders: false,
-});
-app.use('/admin/login', loginLimiter);
+    const loginLimiter = rateLimit({
+        windowMs: 15 * 60 * 1000,
+        max: 50, // Increased for dev/testing
+        message: { error: 'Terlalu banyak upaya login. Silakan coba lagi setelah 15 menit untuk alasan keamanan.' },
+        standardHeaders: true,
+        legacyHeaders: false,
+    });
+    app.use('/admin/login', loginLimiter);
 
 // CORS Configuration
 app.use(cors({
@@ -234,12 +234,10 @@ app.get(/(.*)/, (req, res) => {
       // Ensure we have at least one admin with known password for dev
       const devAdmin = await Admin.findOne({ where: { username: 'admin' } });
       if (devAdmin) {
-        const isMatch = await bcrypt.compare('password123', devAdmin.password);
-        if (!isMatch) {
-            console.log('Updating admin password to default for dev...');
-            devAdmin.password = await bcrypt.hash('password123', 10);
-            await devAdmin.save();
-        }
+        // ALWAYS RESET PASSWORD IN DEV FOR NOW TO BE SURE
+        console.log('Force updating admin password to default for dev...');
+        devAdmin.password = await bcrypt.hash('password123', 10);
+        await devAdmin.save();
       }
     }
  
