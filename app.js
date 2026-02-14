@@ -92,7 +92,7 @@ app.use(session({
     proxy: true, // Required for Railway (behind load balancer)
     cookie: {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production', // true in production
+        secure: false,
         maxAge: 24 * 60 * 60 * 1000 // 24 hours
     }
 }));

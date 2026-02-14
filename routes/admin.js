@@ -72,7 +72,9 @@ router.post('/login', async (req, res) => {
         const isMatch = await bcrypt.compare(password, admin.password);
         if (isMatch) { 
             req.session.adminId = admin.id;
-            res.json({ success: true, message: 'Login successful', role: admin.role });
+            req.session.save(() => {
+                res.json({ success: true, message: 'Login successful', role: admin.role });
+            });
         } else {
             res.status(401).json({ error: 'Username atau Password salah' });
         }
