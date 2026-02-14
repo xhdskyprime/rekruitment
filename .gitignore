@@ -11,6 +11,9 @@ database.sqlite
 /.cloudflared
 /.node
 /.node22
+/.gitbin
+/.gitportable
+/.gitwin
 *.log
 npm-debug.log*
 logs/
