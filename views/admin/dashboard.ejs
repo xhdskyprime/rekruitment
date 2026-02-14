@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Admin HR - RSUD Tigaraksa</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="/css/tangerang-theme.css" rel="stylesheet">
+    <style>
+        .file-status-icon {
+            font-size: 1.2rem;
+            cursor: pointer;
+        }
+        .file-status-icon.verified { color: green; }
+        .file-status-icon.unverified { color: red; }
+    </style>
+</head>
+<body>
+    
+    <!-- Top Header -->
+    <div class="top-header">
+        <div class="container">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <i class="fas fa-phone-alt me-2"></i>(021) 5990xxx
+                    <span class="mx-2">|</span>
+                    <i class="fas fa-envelope me-2"></i>info@rsud-tigaraksa.tangerangkab.go.id
+                </div>
+                <div>
+                    <a href="/" class="text-white text-decoration-none me-3"><i class="fas fa-home me-1"></i> Beranda</a>
+                    <a href="/admin/logout" class="text-white text-decoration-none"><i class="fas fa-sign-out-alt me-1"></i> Logout</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Header -->
+    <header class="main-header">
+        <div class="container">
+            <div class="brand-container">
+                <img src="https://upload.wikimedia.org/wikipedia/commons/4/4b/Lambang_Kabupaten_Tangerang.png" alt="Logo Kab Tangerang" class="brand-logo">
+                <div class="brand-text">
+                    <h1>PEMERINTAH KABUPATEN TANGERANG</h1>
+                    <h2>UPTD RSUD TIGARAKSA</h2>
+                    <p>Jl. Raya Tigaraksa No. 1, Kabupaten Tangerang, Banten</p>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <div class="container-fluid px-4">
+            <div class="row">
+                <div class="col-12">
+                    <div class="card shadow-lg">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <span><i class="fas fa-users-cog me-2"></i>Dashboard Verifikasi Pelamar</span>
+                            <span class="badge bg-light text-dark">Admin HR Panel</span>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-striped table-hover align-middle">
+                                    <thead class="table-dark" style="background-color: var(--tangerang-purple) !important;">
+                                        <tr>
+                                            <th>ID</th>
+                                            <th>Data Pelamar</th>
+                                            <th>Posisi</th>
+                                            <th>Verifikasi Berkas (Klik untuk Cek)</th>
+                                            <th>Status Akhir</th>
+                                            <th>Aksi</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <% applicants.forEach(applicant => { %>
+                                            <tr>
+                                                <td><span class="badge bg-secondary">#<%= applicant.id %></span></td>
+                                                <td>
+                                                    <div class="fw-bold"><%= applicant.name %></div>
+                                                    <div class="text-muted small"><i class="fas fa-envelope me-1"></i><%= applicant.email %></div>
+                                                </td>
+                                                <td><span class="badge bg-info text-dark"><%= applicant.position %></span></td>
+                                                <td>
+                                                    <div class="d-flex gap-2">
+                                                        <% 
+                                                        const getBtnClass = (status) => {
+                                                            if(status === 'valid') return 'btn-success';
+                                                            if(status === 'invalid') return 'btn-danger';
+                                                            return 'btn-outline-secondary';
+                                                        }
+                                                        const getIcon = (status) => {
+                                                            if(status === 'valid') return '<i class="fas fa-check"></i>';
+                                                            if(status === 'invalid') return '<i class="fas fa-times"></i>';
+                                                            return '<i class="fas fa-eye"></i>';
+                                                        }
+                                                        %>
+                                                        <button class="btn btn-sm <%= getBtnClass(applicant.ktpStatus) %>" 
+                                                            onclick="openPreview('<%= applicant.id %>', 'KTP', '<%= applicant.ktpPath %>', '<%= applicant.ktpStatus %>')"
+                                                            title="Cek KTP">
+                                                            KTP <%- getIcon(applicant.ktpStatus) %>
+                                                        </button>
+                                                        <button class="btn btn-sm <%= getBtnClass(applicant.ijazahStatus) %>" 
+                                                            onclick="openPreview('<%= applicant.id %>', 'Ijazah', '<%= applicant.ijazahPath %>', '<%= applicant.ijazahStatus %>')"
+                                                            title="Cek Ijazah">
+                                                            Ijazah <%- getIcon(applicant.ijazahStatus) %>
+                                                        </button>
+                                                        <button class="btn btn-sm <%= getBtnClass(applicant.strStatus) %>" 
+                                                            onclick="openPreview('<%= applicant.id %>', 'STR', '<%= applicant.strPath %>', '<%= applicant.strStatus %>')"
+                                                            title="Cek STR">
+                                                            STR <%- getIcon(applicant.strStatus) %>
+                                                        </button>
+                                                        <button class="btn btn-sm <%= getBtnClass(applicant.sertifikatStatus) %>" 
+                                                            onclick="openPreview('<%= applicant.id %>', 'Sertifikat', '<%= applicant.sertifikatPath %>', '<%= applicant.sertifikatStatus %>')"
+                                                            title="Cek Sertifikat">
+                                                            Sertifikat <%- getIcon(applicant.sertifikatStatus) %>
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <% if (applicant.status === 'verified') { %>
+                                                        <span class="badge bg-success"><i class="fas fa-check-circle me-1"></i>Lolos Verifikasi</span>
+                                                    <% } else if (applicant.status === 'rejected') { %>
+                                                        <span class="badge bg-danger"><i class="fas fa-times-circle me-1"></i>Ditolak</span>
+                                                    <% } else { %>
+                                                        <span class="badge bg-warning text-dark"><i class="fas fa-spinner fa-spin me-1"></i>Proses</span>
+                                                    <% } %>
+                                                </td>
+                                                <td>
+                                                    <% if (applicant.status === 'verified') { %>
+                                                        <a href="<%= applicant.examCardPath %>" target="_blank" class="btn btn-sm btn-primary"><i class="fas fa-id-card me-1"></i>Kartu Ujian</a>
+                                                    <% } %>
+                                                    <form action="/admin/reject/<%= applicant.id %>" method="POST" class="d-inline ms-1">
+                                                        <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Yakin ingin menolak pelamar ini secara permanen?')" title="Tolak Pelamar">
+                                                            <i class="fas fa-ban"></i>
+                                                        </button>
+                                                    </form>
+                                                </td>
+                                            </tr>
+                                        <% }) %>
+                                        <% if (applicants.length === 0) { %>
+                                            <tr>
+                                                <td colspan="6" class="text-center py-4 text-muted">Belum ada data pelamar yang masuk.</td>
+                                            </tr>
+                                        <% } %>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Preview -->
+    <div class="modal fade" id="previewModal" tabindex="-1">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-light">
+                    <h5 class="modal-title" id="modalTitle"><i class="fas fa-search me-2"></i>Verifikasi Dokumen</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body text-center">
+                    <div id="fileContainer" class="mb-3 border p-2 bg-white rounded shadow-sm" style="min-height: 300px; display: flex; align-items: center; justify-content: center;">
+                        <!-- Content will be loaded here -->
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-center gap-3 mt-4">
+                        <button id="btnValid" class="btn btn-success btn-lg px-4"><i class="fas fa-check me-2"></i>Sesuai</button>
+                        <button id="btnInvalid" class="btn btn-danger btn-lg px-4"><i class="fas fa-times me-2"></i>Tidak Sesuai</button>
+                    </div>
+                    <div class="text-muted small mt-2">
+                        *Menandai "Tidak Sesuai" akan otomatis menolak pelamar.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="main-footer mt-auto">
+        <div class="container">
+            <div class="copyright mt-0 pt-0 border-0">
+                &copy; 2025 Pemerintah Kabupaten Tangerang - RSUD Tigaraksa. All rights reserved.
+            </div>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const modal = new bootstrap.Modal(document.getElementById('previewModal'));
+        let currentApplicantId = null;
+        let currentFileType = null;
+
+        function openPreview(id, typeLabel, path, currentStatus) {
+            currentApplicantId = id;
+            currentFileType = typeLabel.toLowerCase();
+            
+            document.getElementById('modalTitle').textContent = `Verifikasi ${typeLabel}`;
+            const container = document.getElementById('fileContainer');
+            
+            // Check file extension to decide how to display
+            const ext = path.split('.').pop().toLowerCase();
+            if (['jpg', 'jpeg', 'png'].includes(ext)) {
+                container.innerHTML = `<img src="${path}" class="img-fluid" style="max-height: 500px;">`;
+            } else if (ext === 'pdf') {
+                container.innerHTML = `<iframe src="${path}" style="width:100%; height:500px;" frameborder="0"></iframe>`;
+            } else {
+                container.innerHTML = `<a href="${path}" target="_blank" class="btn btn-primary"><i class="fas fa-download me-2"></i>Download File untuk Melihat</a>`;
+            }
+
+            modal.show();
+        }
+
+        async function updateStatus(status) {
+            // Disable buttons to prevent double click
+            document.getElementById('btnValid').disabled = true;
+            document.getElementById('btnInvalid').disabled = true;
+
+            try {
+                const response = await fetch(`/admin/verify-file/${currentApplicantId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        fileType: currentFileType,
+                        status: status
+                    })
+                });
+                
+                if (response.ok) {
+                    location.reload();
+                } else {
+                    alert('Gagal mengupdate status.');
+                    document.getElementById('btnValid').disabled = false;
+                    document.getElementById('btnInvalid').disabled = false;
+                }
+            } catch (error) {
+                console.error(error);
+                alert('Terjadi kesalahan.');
+                document.getElementById('btnValid').disabled = false;
+                document.getElementById('btnInvalid').disabled = false;
+            }
+        }
+
+        document.getElementById('btnValid').onclick = () => updateStatus('valid');
+        document.getElementById('btnInvalid').onclick = () => updateStatus('invalid');
+    </script>
+</body>
+</html>
