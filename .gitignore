@@ -8,8 +8,6 @@ client/dist
 .DS_Store
 *.sqlite
 database.sqlite
-<<<<<<< HEAD
-=======
 /.cloudflared
 /.node
 /.node22
@@ -19,4 +17,3 @@ database.sqlite
 *.log
 npm-debug.log*
 logs/
->>>>>>> origin/rsud-main-setup
