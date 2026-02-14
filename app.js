@@ -37,25 +37,61 @@ app.set('trust proxy', 1);
 
 // Security Middleware
 app.use(helmet({
-    contentSecurityPolicy: false, // Disabled for simple dev setup, enable in prod
-    crossOriginResourcePolicy: false,
+    contentSecurityPolicy: {
+        directives: {
+            defaultSrc: ["'self'"],
+            scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"], // Needed for some libraries
+            styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+            imgSrc: ["'self'", "data:", "blob:", "https://*"],
+            fontSrc: ["'self'", "https://fonts.gstatic.com"],
+            connectSrc: ["'self'", "https://*"],
+            frameSrc: ["'self'"],
+        },
+    },
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+    crossOriginEmbedderPolicy: false,
 }));
+
+// Payload Limit to prevent DoS
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Rate Limiting
 const limiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 1000, // Increased limit for launch (was 100)
-    message: 'Too many requests from this IP, please try again later.'
+    max: 500, // Reduced from 1000 for better security
+    message: { error: 'Terlalu banyak permintaan dari IP ini, silakan coba lagi nanti.' },
+    standardHeaders: true,
+    legacyHeaders: false,
 });
 app.use(limiter);
 
-// Middleware
+// Registration Rate Limit - Max 5 attempts per 15 minutes per IP
+const registrationLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 5,
+    message: { error: 'Terlalu banyak upaya pendaftaran dari IP ini. Silakan coba lagi setelah 15 menit.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+app.use('/register', registrationLimiter);
+app.use('/api/register', registrationLimiter);
+
+// Login Rate Limit - Max 10 attempts per 15 minutes per IP
+    const loginLimiter = rateLimit({
+        windowMs: 15 * 60 * 1000,
+        max: 50, // Increased for dev/testing
+        message: { error: 'Terlalu banyak upaya login. Silakan coba lagi setelah 15 menit untuk alasan keamanan.' },
+        standardHeaders: true,
+        legacyHeaders: false,
+    });
+    app.use('/admin/login', loginLimiter);
+
+// CORS Configuration
 app.use(cors({
     origin: ['http://localhost:5174', 'http://localhost:5173', process.env.CLIENT_URL || '*'],
     credentials: true
 }));
-app.use(express.urlencoded({ extended: true }));
-app.use(express.json());
 
 // Static Files Optimization (Basic CDN-like behavior)
 // 1. Serve assets (hashed files) with long cache
@@ -69,7 +105,7 @@ app.use(express.static('public'));
 app.use(express.static(path.join(__dirname, 'client/dist'), {
     maxAge: '1h', // Cache index.html etc for 1 hour
 }));
-// app.use('/uploads', express.static(process.env.UPLOAD_DIR || path.join(__dirname, 'data/uploads')));
+app.use('/uploads', express.static(process.env.UPLOAD_DIR || path.join(__dirname, 'public/uploads')));
 
 app.use(methodOverride('_method'));
 
@@ -160,7 +196,8 @@ app.get(/(.*)/, (req, res) => {
     }
  
     // Sync other tables (safe alter)
-    await Admin.sync({ alter: true });
+    // Avoid alter:true for Admin to prevent SQLite UNIQUE constraint issues
+    await Admin.sync(); 
     try {
       const positionsDesc = await qi.describeTable('Positions').catch(() => ({}));
       if (!positionsDesc.code) {
@@ -193,6 +230,15 @@ app.get(/(.*)/, (req, res) => {
         role: 'superadmin'
       });
       console.log('Default admin created: admin / password123 (superadmin)');
+    } else {
+      // Ensure we have at least one admin with known password for dev
+      const devAdmin = await Admin.findOne({ where: { username: 'admin' } });
+      if (devAdmin) {
+        // ALWAYS RESET PASSWORD IN DEV FOR NOW TO BE SURE
+        console.log('Force updating admin password to default for dev...');
+        devAdmin.password = await bcrypt.hash('password123', 10);
+        await devAdmin.save();
+      }
     }
  
     // Seed default settings

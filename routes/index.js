@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const path = require('path');
+const axios = require('axios');
+const { Op } = require('sequelize');
 const Applicant = require('../models/Applicant');
 const Position = require('../models/Position');
 const SystemSetting = require('../models/SystemSetting');
@@ -74,6 +76,8 @@ const uploadFields = upload.fields([
     { name: 'pasFoto', maxCount: 1 }
 ]);
 
+const APPLICANTS_UPLOAD_DIR = path.join(__dirname, '../public/uploads/applicants');
+
 router.post('/register', (req, res, next) => {
     console.log('Request received at /register');
     uploadFields(req, res, async (err) => {
@@ -92,7 +96,41 @@ router.post('/register', (req, res, next) => {
 
         // --- Backend Validation ---
         const errors = [];
-        const { name, nik, gender, birthPlace, birthDate, education, institution, major, gpa, email, phoneNumber, position } = req.body;
+        const { name, nik, gender, birthPlace, birthDate, education, institution, major, gpa, email, phoneNumber, position, 'cf-turnstile-response': turnstileToken } = req.body;
+        
+        // --- Turnstile Verification (WAF) ---
+        if (!turnstileToken) {
+            console.error('Turnstile token missing');
+            return res.status(400).json({ error: 'Harap selesaikan verifikasi keamanan (Turnstile).' });
+        }
+
+        try {
+            const params = new URLSearchParams();
+            params.append('secret', process.env.TURNSTILE_SECRET_KEY);
+            params.append('response', turnstileToken);
+            params.append('remoteip', req.ip);
+
+            const turnstileResponse = await axios.post(
+                'https://challenges.cloudflare.com/turnstile/v0/siteverify',
+                params.toString(),
+                {
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                }
+            );
+
+            if (!turnstileResponse.data.success) {
+                console.error('Turnstile verification failed. Error codes:', turnstileResponse.data['error-codes']);
+                return res.status(400).json({ error: 'Verifikasi keamanan gagal. Silakan coba lagi.' });
+            }
+        } catch (error) {
+            console.error('Turnstile error:', error);
+            // Don't block registration if Turnstile service is down (optional strategy)
+            // For now, we block it as it's a security requirement
+            return res.status(500).json({ error: 'Gagal memverifikasi keamanan. Silakan coba lagi nanti.' });
+        }
+
         console.log('Validating NIK:', nik, 'Length:', nik ? nik.length : 'null');
 
         if (!name) errors.push('Nama wajib diisi');
@@ -167,13 +205,10 @@ router.post('/register', (req, res, next) => {
         next();
     });
 }, async (req, res) => {
-    const uploadedDriveIds = []; // Track drive IDs for cleanup if save fails
+    let applicantFolderPath = null;
     try {
         const files = req.files || {};
-        // Required files based on UI: Surat Lamaran, KTP, Ijazah, STR, Surat Pernyataan, Pas Foto
-        // Sertifikat is optional
         if (!files.suratLamaran || !files.ktp || !files.ijazah || !files.str || !files.suratPernyataan || !files.pasFoto) {
-            // Cleanup temp files
             if (req.files) {
                 Object.values(req.files).forEach(fileArray => {
                     fileArray.forEach(file => {
@@ -186,40 +221,44 @@ router.post('/register', (req, res, next) => {
 
         const { name, nik, gender, birthPlace, birthDate, education, institution, major, gpa, email, phoneNumber, position } = req.body;
         
-        // Helper to upload to Drive and return proxy path
-        const processFile = async (fileArray, label, parentFolderId) => {
+        // Create applicant folder
+        const initFolderName = `${nik}-${name.replace(/\s+/g, '_')}`;
+        applicantFolderPath = path.join(APPLICANTS_UPLOAD_DIR, initFolderName);
+        
+        if (!fs.existsSync(applicantFolderPath)) {
+            fs.mkdirSync(applicantFolderPath, { recursive: true });
+        }
+
+        // Helper to move file locally and return path
+        const processFileLocally = async (fileArray, label) => {
              if (fileArray && fileArray.length > 0) {
                  const file = fileArray[0];
                  const ext = path.extname(file.originalname);
                  const customName = `${label}_${nik}${ext}`;
+                 const destPath = path.join(applicantFolderPath, customName);
                  
                  try {
-                     console.log(`Uploading ${label} to Drive as ${customName}...`);
-                     const driveFile = await driveService.uploadFile(file, parentFolderId, customName);
-                     uploadedDriveIds.push(driveFile.id);
+                     console.log(`Moving ${label} to local storage as ${customName}...`);
+                     fs.renameSync(file.path, destPath);
                      
-                     if (fs.existsSync(file.path)) {
-                         fs.unlinkSync(file.path);
-                     }
-                     
-                     return `/file/proxy/${driveFile.id}`;
+                     // Return relative path for database storage
+                     const relativePath = path.posix.join('/uploads/applicants', initFolderName, customName);
+                     return relativePath;
                  } catch (err) {
-                     console.error(`Failed to upload ${label} to Drive:`, err);
-                     throw new Error(`Gagal mengunggah berkas ${label} ke Drive: ${err.message || 'Unknown error'}`);
+                     console.error(`Failed to move ${label} to local storage:`, err);
+                     throw new Error(`Gagal menyimpan berkas ${label} secara lokal: ${err.message || 'Unknown error'}`);
                  }
              }
              return null;
         };
 
-        const initFolderName = `${nik}-${name.replace(/\s+/g, '_')}`;
-        const applicantFolderId = await driveService.ensureFolder(initFolderName, null);
-        const ktpPath = await processFile(files.ktp, 'KTP', applicantFolderId);
-        const ijazahPath = await processFile(files.ijazah, 'Ijazah & Nilai Terakhir', applicantFolderId);
-        const strPath = await processFile(files.str, 'STR', applicantFolderId);
-        const sertifikatPath = await processFile(files.sertifikat, 'Sertifikat', applicantFolderId);
-        const suratPernyataanPath = await processFile(files.suratPernyataan, 'Surat Pernyataan', applicantFolderId);
-        const pasFotoPath = await processFile(files.pasFoto, 'Pas Foto', applicantFolderId);
-        const suratLamaranPath = await processFile(files.suratLamaran, 'Surat Lamaran & CV', applicantFolderId);
+        const ktpPath = await processFileLocally(files.ktp, 'KTP');
+        const ijazahPath = await processFileLocally(files.ijazah, 'Ijazah & Nilai Terakhir');
+        const strPath = await processFileLocally(files.str, 'STR');
+        const sertifikatPath = await processFileLocally(files.sertifikat, 'Sertifikat');
+        const suratPernyataanPath = await processFileLocally(files.suratPernyataan, 'Surat Pernyataan');
+        const pasFotoPath = await processFileLocally(files.pasFoto, 'Pas Foto');
+        const suratLamaranPath = await processFileLocally(files.suratLamaran, 'Surat Lamaran & CV');
 
         const applicant = await Applicant.create({
             name,
@@ -253,23 +292,39 @@ router.post('/register', (req, res, next) => {
             const seq = String(applicant.id % 1000).padStart(3, '0');
             applicant.participantNumber = `${yy}${mm}${dd}${posCode}${seq}`;
             await applicant.save();
-            const finalFolderName = `${applicant.participantNumber}-${name.replace(/\s+/g, '_')}`;
-            await driveService.renameFile(applicantFolderId, finalFolderName);
+            
+            // Rename folder to include participantNumber (format: nomorpeserta_namapeserta)
+            const finalFolderName = `${applicant.participantNumber}_${name.replace(/\s+/g, '_')}`;
+            const finalFolderPath = path.join(APPLICANTS_UPLOAD_DIR, finalFolderName);
+            
+            if (fs.existsSync(applicantFolderPath)) {
+                fs.renameSync(applicantFolderPath, finalFolderPath);
+                
+                // Update paths in database to the new folder name
+                const updatePath = (p) => p ? p.replace(initFolderName, finalFolderName) : p;
+                applicant.ktpPath = updatePath(applicant.ktpPath);
+                applicant.ijazahPath = updatePath(applicant.ijazahPath);
+                applicant.strPath = updatePath(applicant.strPath);
+                applicant.sertifikatPath = updatePath(applicant.sertifikatPath);
+                applicant.suratPernyataanPath = updatePath(applicant.suratPernyataanPath);
+                applicant.pasFotoPath = updatePath(applicant.pasFotoPath);
+                applicant.suratLamaranPath = updatePath(applicant.suratLamaranPath);
+                await applicant.save();
+            }
         } catch (genErr) {
-            console.error('Generate participantNumber error:', genErr);
+            console.error('Generate participantNumber or folder rename error:', genErr);
         }
 
         res.status(201).json({ success: true, applicant });
     } catch (error) {
         console.error('Registration Error:', error);
         
-        // Cleanup uploaded Drive files if anything fails
-        for (const driveId of uploadedDriveIds) {
+        // Cleanup applicant folder if anything fails
+        if (applicantFolderPath && fs.existsSync(applicantFolderPath)) {
             try {
-                console.log(`Cleaning up Drive file ${driveId} due to error...`);
-                await driveService.deleteFile(driveId);
+                fs.rmSync(applicantFolderPath, { recursive: true, force: true });
             } catch (cleanupErr) {
-                console.error(`Failed to cleanup Drive file ${driveId}:`, cleanupErr);
+                console.error(`Failed to cleanup folder ${applicantFolderPath}:`, cleanupErr);
             }
         }
 

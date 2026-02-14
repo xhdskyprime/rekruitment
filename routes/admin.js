@@ -63,21 +63,25 @@ router.get('/check-auth', async (req, res) => {
 // Handle Login
 router.post('/login', async (req, res) => {
     const { username, password } = req.body;
+    console.log(`[Login] Attempt for username: ${username}`);
     try {
         const admin = await Admin.findOne({ where: { username } });
         if (!admin) {
+            console.warn(`[Login] User not found: ${username}`);
             return res.status(401).json({ error: 'Username atau Password salah' });
         }
 
         const isMatch = await bcrypt.compare(password, admin.password);
         if (isMatch) { 
             req.session.adminId = admin.id;
+            console.log(`[Login] Success for user: ${username}, Session ID: ${req.sessionID}`);
             res.json({ success: true, message: 'Login successful', role: admin.role });
         } else {
+            console.warn(`[Login] Password mismatch for user: ${username}`);
             res.status(401).json({ error: 'Username atau Password salah' });
         }
     } catch (error) {
-        console.error(error);
+        console.error('[Login] Server error:', error);
         res.status(500).json({ error: 'Terjadi kesalahan server' });
     }
 });
