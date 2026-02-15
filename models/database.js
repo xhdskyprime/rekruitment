@@ -26,7 +26,9 @@ if (process.env.DATABASE_URL) {
 } else {
     // Development (Local/SQLite)
     console.log("Using SQLite Database (Local)");
-    const dbPath = process.env.DB_PATH || path.join(__dirname, '../data/database.sqlite');
+    const dbPath = process.env.DB_PATH || path.join(__dirname, '../data/database.sqlite'); 
+    const dir = path.dirname(dbPath);
+    try { require('fs').mkdirSync(dir, { recursive: true }); } catch {}
     sequelize = new Sequelize({
         dialect: 'sqlite',
         storage: dbPath,

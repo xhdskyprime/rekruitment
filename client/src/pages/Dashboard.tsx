@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { 
   Users, CheckCircle, XCircle, FileText, Pencil, 
   LogOut, Search, Clock, LayoutDashboard, User, Printer, ChevronDown, ChevronRight, ChevronLeft, X, QrCode, Camera, CameraOff, Trash2, Briefcase, Settings,
-  Maximize2, Minimize2
+  Maximize2, Minimize2, Download
 } from 'lucide-react';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import Swal from 'sweetalert2';
@@ -710,7 +710,6 @@ const Dashboard = () => {
     setIsFullscreen(false);
     
     let verifiedAt, verifiedBy, rejectReason;
-    // Map type to property names
     if (type === 'ktp') { 
         verifiedAt = applicant.ktpVerifiedAt; 
         verifiedBy = applicant.ktpVerifiedBy; 
@@ -744,7 +743,6 @@ const Dashboard = () => {
 
     setRejectReasonInput(rejectReason || '');
 
-    // Set preview file immediately to trigger iframe loading
     setPreviewFile({
       type,
       label,
@@ -755,8 +753,18 @@ const Dashboard = () => {
       rejectReason
     });
     
-    // Default to application/pdf for non-images to avoid loading delay
-    setPreviewMime('application/pdf'); 
+    const lower = (path || '').toLowerCase();
+    if (lower.endsWith('.jpg') || lower.endsWith('.jpeg') || lower.endsWith('.png')) {
+      setPreviewMime('image/*');
+    } else if (lower.endsWith('.pdf')) {
+      setPreviewMime('application/pdf');
+    } else if (lower.endsWith('.docx')) {
+      setPreviewMime('application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    } else if (lower.endsWith('.doc')) {
+      setPreviewMime('application/msword');
+    } else {
+      setPreviewMime('');
+    }
 
     if (path && path.includes('/file/proxy/')) {
       const id = path.split('/file/proxy/')[1];
@@ -2034,7 +2042,7 @@ const Dashboard = () => {
                                 { key: 'ijazah', label: 'Ijazah & Nilai', status: app.ijazahStatus, path: app.ijazahPath },
                                 { key: 'str', label: 'STR', status: app.strStatus, path: app.strPath },
                                 { key: 'suratPernyataan', label: 'Pernyataan', status: app.suratPernyataanStatus, path: app.suratPernyataanPath },
-                                { key: 'sertifikat', label: 'Sert', status: app.sertifikatStatus, path: app.sertifikatPath },
+                                { key: 'sertifikat', label: 'Sert (Opsional)', status: app.sertifikatStatus, path: app.sertifikatPath },
                               ].map((file) => file.path && (
                                 <button
                                   key={file.key}
@@ -2240,6 +2248,20 @@ const Dashboard = () => {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
+                  <a
+                    href={
+                      previewFile.url.includes('/file/proxy/')
+                        ? `${previewFile.url}${previewFile.url.includes('?') ? '&' : '?'}download=1`
+                        : previewFile.url
+                    }
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    download={!previewFile.url.includes('/file/proxy/')}
+                    className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-full transition-all duration-200"
+                    title="Unduh Berkas"
+                  >
+                    <Download size={22} />
+                  </a>
                   <button 
                     onClick={() => setIsFullscreen(true)}
                     className="p-2 text-gray-400 hover:text-tangerang-purple hover:bg-purple-50 rounded-full transition-all duration-200"
@@ -2283,13 +2305,27 @@ const Dashboard = () => {
                   className={`w-full h-full object-contain bg-white shadow-inner ${isFullscreen ? '' : 'rounded-lg border'}`} 
                   alt={previewFile.label} 
                 />
-              ) : (
+              ) : previewMime === 'application/pdf' ? (
                 <iframe 
                   key={previewFile.url}
                   src={previewFile.url} 
                   className={`w-full h-full bg-white shadow-inner ${isFullscreen ? '' : 'rounded-lg border'}`}
                   title="Preview"
                 />
+              ) : (
+                <div className="w-full h-full bg-white shadow-inner flex items-center justify-center text-center p-6">
+                  <div>
+                    <div className="text-gray-400 mb-3 text-sm">Pratinjau tidak didukung untuk tipe ini.</div>
+                    <a
+                      href={previewFile.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-block px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition"
+                    >
+                      Buka / Unduh Berkas
+                    </a>
+                  </div>
+                </div>
               )}
             </div>
 

@@ -6,6 +6,12 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5174,
+    allowedHosts: ['rsudtgrs.my.id'],
+    hmr: {
+      protocol: 'wss',
+      host: 'rsudtgrs.my.id',
+      clientPort: 443,
+    },
     proxy: {
       '/register': 'http://localhost:3000',
       '/api': {

@@ -144,7 +144,7 @@ const driveService = {
         return updated.data;
     },
 
-    getFileStream: async (fileId, res) => {
+    getFileStream: async (fileId, res, disposition = 'inline') => {
         const auth = getAuth();
         if (!auth) throw new Error("Google Auth credentials missing");
 
@@ -166,7 +166,7 @@ const driveService = {
             console.log(`[DriveService] Streaming file: ${name} (${mimeType})`);
 
             res.setHeader('Content-Type', mimeType);
-            res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(name)}"`);
+            res.setHeader('Content-Disposition', `${disposition}; filename="${encodeURIComponent(name)}"`);
             res.setHeader('X-Content-Type-Options', 'nosniff');
             res.setHeader('Cache-Control', 'private, max-age=0, no-cache, no-store');
             
