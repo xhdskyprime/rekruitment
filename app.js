@@ -40,17 +40,31 @@ app.use(helmet({
     contentSecurityPolicy: {
         directives: {
             defaultSrc: ["'self'"],
-            scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"], // Needed for some libraries
+            baseUri: ["'self'"],
+            objectSrc: ["'none'"],
+            formAction: ["'self'"],
+            frameAncestors: ["'self'"],
+            upgradeInsecureRequests: [],
+            scriptSrc: [
+                "'self'",
+                "'unsafe-inline'",
+                "https://challenges.cloudflare.com",
+                "https://cdn.jsdelivr.net"
+            ],
             styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-            imgSrc: ["'self'", "data:", "blob:", "https://*"],
+            imgSrc: ["'self'", "data:", "blob:"],
             fontSrc: ["'self'", "https://fonts.gstatic.com"],
-            connectSrc: ["'self'", "https://*"],
-            frameSrc: ["'self'"],
+            connectSrc: ["'self'", "https://challenges.cloudflare.com"],
+            frameSrc: ["'self'", "blob:", "https://challenges.cloudflare.com"],
+            childSrc: ["'self'", "blob:"],
         },
     },
     crossOriginResourcePolicy: { policy: "cross-origin" },
     crossOriginEmbedderPolicy: false,
 }));
+
+// Ensure X-Frame-Options allows same-origin iframes (for preview modal)
+app.use(helmet.frameguard({ action: 'sameorigin' }));
 
 // Payload Limit to prevent DoS
 app.use(express.json({ limit: '10mb' }));
@@ -89,9 +103,35 @@ app.use('/api/register', registrationLimiter);
 
 // CORS Configuration
 app.use(cors({
-    origin: ['http://localhost:5174', 'http://localhost:5173', process.env.CLIENT_URL || '*'],
+    origin: [
+        process.env.CLIENT_URL || 'http://localhost:5173',
+        'http://localhost:5174',
+        'http://localhost:5173'
+    ],
     credentials: true
 }));
+
+// Simple Origin check for sensitive POSTs (additional CSRF hardening)
+const allowedOrigin = (() => {
+    try {
+        return new URL(process.env.CLIENT_URL).origin;
+    } catch {
+        return null;
+    }
+})();
+const originGuard = (req, res, next) => {
+    if (req.method === 'POST' && (req.path === '/register' || req.path === '/admin/login')) {
+        const origin = req.get('origin') || '';
+        const referer = req.get('referer') || '';
+        if (allowedOrigin) {
+            if (origin && origin !== allowedOrigin && !referer.startsWith(allowedOrigin)) {
+                return res.status(403).json({ error: 'Origin tidak diizinkan' });
+            }
+        }
+    }
+    next();
+};
+app.use(originGuard);
 
 // Static Files Optimization (Basic CDN-like behavior)
 // 1. Serve assets (hashed files) with long cache
@@ -103,7 +143,12 @@ app.use('/assets', express.static(path.join(__dirname, 'client/dist/assets'), {
 // 2. Serve other static files with normal cache
 app.use(express.static('public'));
 app.use(express.static(path.join(__dirname, 'client/dist'), {
-    maxAge: '1h', // Cache index.html etc for 1 hour
+    maxAge: '1h',
+    setHeaders: (res, p) => {
+        if (p.endsWith('index.html')) {
+            res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+        }
+    }
 }));
 app.use('/uploads', express.static(process.env.UPLOAD_DIR || path.join(__dirname, 'public/uploads')));
 
@@ -139,7 +184,8 @@ app.get('/file/proxy/:id', async (req, res) => {
         return res.status(401).json({ error: 'Unauthorized' });
     }
     const fileId = req.params.id;
-    await driveService.getFileStream(fileId, res);
+    const forceDownload = String(req.query.download || '').trim() !== '';
+    await driveService.getFileStream(fileId, res, forceDownload ? 'attachment' : 'inline');
 });
 app.get('/file/meta/:id', async (req, res) => {
     if (!req.session || !req.session.adminId) {

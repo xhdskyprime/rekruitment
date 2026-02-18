@@ -109,21 +109,23 @@ router.post('/register', (req, res, next) => {
             params.append('secret', process.env.TURNSTILE_SECRET_KEY);
             params.append('response', turnstileToken);
             params.append('remoteip', req.ip);
-
-            const turnstileResponse = await axios.post(
+            const turnstileResp = await axios.post(
                 'https://challenges.cloudflare.com/turnstile/v0/siteverify',
                 params.toString(),
-                {
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
-                }
+                { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
             );
-
-            if (!turnstileResponse.data.success) {
-                console.error('Turnstile verification failed. Error codes:', turnstileResponse.data['error-codes']);
+            const data = turnstileResp.data || {};
+            if (!data.success) {
+                console.error('Turnstile verification failed. Error codes:', data['error-codes']);
                 return res.status(400).json({ error: 'Verifikasi keamanan gagal. Silakan coba lagi.' });
             }
+            try {
+                const expectedHost = new URL(process.env.CLIENT_URL).hostname;
+                if (data.hostname && data.hostname !== expectedHost) {
+                    console.warn('Turnstile hostname mismatch:', data.hostname, 'expected:', expectedHost);
+                    return res.status(400).json({ error: 'Verifikasi keamanan tidak valid untuk domain ini.' });
+                }
+            } catch {}
         } catch (error) {
             console.error('Turnstile error:', error);
             // Don't block registration if Turnstile service is down (optional strategy)
